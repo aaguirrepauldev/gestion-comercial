@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
 import cors from 'cors';
-import { CORS_ORIGIN, PORT } from './config.js';
+import { CORS_ORIGIN, PORT, TRUST_PROXY } from './config.js';
 import './db.js';
 import { requireAdmin, requireAuth, requireModule } from './auth.js';
 import { HttpError } from './util.js';
@@ -13,7 +13,9 @@ import cashRoutes from './routes/cash.js';
 import dashboardRoutes from './routes/dashboard.js';
 
 const app = express();
-app.use(cors({ origin: CORS_ORIGIN }));
+app.set('trust proxy', TRUST_PROXY);
+app.disable('x-powered-by');
+app.use(cors({ origin: CORS_ORIGIN.includes('*') ? true : CORS_ORIGIN }));
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));

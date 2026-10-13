@@ -54,9 +54,11 @@ export default function LoginPage() {
         <button className="btn primary block" disabled={busy}>
           {busy ? 'Ingresando…' : 'Ingresar'}
         </button>
-        <p className="hint">
-          Demo: <code>admin / admin123</code> · <code>libreria / libreria123</code> · <code>avicola / avicola123</code>
-        </p>
+        {process.env.NODE_ENV !== 'production' && (
+          <p className="hint">
+            Demo: <code>admin / admin123</code> · <code>libreria / libreria123</code> · <code>avicola / avicola123</code>
+          </p>
+        )}
       </form>
     </div>
   );

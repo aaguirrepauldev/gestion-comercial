@@ -26,6 +26,14 @@ npm run dev       # API en http://localhost:4000/api · Web en http://localhost:
 
 La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a empezar: `npm run seed:reset`.
 
+### Backups
+
+La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la última tiene más de un día) y después una vez por día, y conserva las últimas 14. Para hacer una copia en el momento: `npm run backup --prefix backend`.
+
+Se configura con variables de entorno: `BACKUP_DIR` (carpeta), `BACKUP_INTERVAL_HOURS` (cada cuántas horas; `0` los desactiva) y `BACKUP_KEEP` (cuántas conservar). Para restaurar, frená la API y reemplazá `backend/data/app.db` por la copia elegida (borrando `app.db-wal` y `app.db-shm`).
+
+En un servidor en la nube conviene que `BACKUP_DIR` apunte a un disco o volumen distinto del de la base, o copiar esa carpeta a otro lugar, para no perder ambos a la vez.
+
 ### Zona horaria
 
 Las fechas (ventas, cajas, movimientos) se guardan en la hora del negocio, no en la del servidor, así "hoy" es el mismo día aunque la API corra en la nube en UTC. Por defecto es `America/Argentina/Buenos_Aires`; se puede cambiar con la variable de entorno `TIME_ZONE` (por ejemplo `TIME_ZONE=America/Argentina/Cordoba`).

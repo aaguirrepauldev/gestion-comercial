@@ -1,0 +1,21 @@
+# Dependencias
+node_modules/
+
+# Base de datos local y sus backups (se crea sola con datos de ejemplo)
+backend/data/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Logs y sistema
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

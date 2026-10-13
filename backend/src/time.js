@@ -18,6 +18,9 @@ export function nowLocal(date = new Date()) {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 }
 
+// Fecha y hora apta para nombres de archivo: 2026-10-13_18-05-00
+export const fileStamp = (date = new Date()) => nowLocal(date).replace(' ', '_').replaceAll(':', '-');
+
 export const todayLocal = (date = new Date()) => nowLocal(date).slice(0, 10);
 
 // Suma (o resta) días a una fecha 'YYYY-MM-DD' sin depender de la zona horaria del servidor.

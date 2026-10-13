@@ -21,7 +21,7 @@ Requisitos: Node.js 22.13+ (probado con 24).
 
 ```bash
 npm run setup     # instala dependencias de raíz, backend y frontend
-npm run dev       # API en http://localhost:4000/api · Web en http://localhost:3000
+npm run dev       # API en http://localhost:4000/api · Web en http://localhost:2000
 ```
 
 La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a empezar: `npm run seed:reset`.
@@ -31,6 +31,8 @@ La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a
 `npm test --prefix backend` corre los tests del backend (flujo de caja y ventas, anulaciones, stock y permisos) contra una base temporal, sin tocar `backend/data/app.db`. También corren solos en GitHub en cada PR.
 
 ### Producción (servidor en la nube)
+
+Para un deploy de prueba en Railway (API) y Vercel (web), seguí la guía [docs/deploy.md](docs/deploy.md).
 
 Copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
 

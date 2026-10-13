@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
-import { DB_PATH } from './config.js';
-import { nowLocal, todayLocal } from './time.js';
+import { ADMIN_PASSWORD, BACKUP_DIR, DB_PATH, IS_PRODUCTION } from './config.js';
+import { migrations } from './migrations.js';
+import { fileStamp, nowLocal, todayLocal } from './time.js';
 
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 export const db = new DatabaseSync(DB_PATH);
@@ -16,98 +17,39 @@ db.function('today_local', { deterministic: false }, () => todayLocal());
 db.exec(`
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
-
-CREATE TABLE IF NOT EXISTS users (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  username      TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  name          TEXT NOT NULL,
-  role          TEXT NOT NULL CHECK (role IN ('admin','vendedor')),
-  modules       TEXT NOT NULL DEFAULT '',
-  active        INTEGER NOT NULL DEFAULT 1,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-
-CREATE TABLE IF NOT EXISTS products (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  module     TEXT NOT NULL CHECK (module IN ('libreria','avicola')),
-  code       TEXT,
-  name       TEXT NOT NULL,
-  category   TEXT,
-  unit       TEXT NOT NULL DEFAULT 'unidad' CHECK (unit IN ('unidad','kg')),
-  cost       REAL NOT NULL DEFAULT 0,
-  price      REAL NOT NULL,
-  stock      REAL NOT NULL DEFAULT 0,
-  min_stock  REAL NOT NULL DEFAULT 0,
-  active     INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  UNIQUE (module, code)
-);
-
-CREATE TABLE IF NOT EXISTS cash_sessions (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  module         TEXT NOT NULL CHECK (module IN ('libreria','avicola')),
-  status         TEXT NOT NULL DEFAULT 'abierta' CHECK (status IN ('abierta','cerrada')),
-  opened_by      INTEGER NOT NULL REFERENCES users(id),
-  opened_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  opening_amount REAL NOT NULL DEFAULT 0,
-  closed_by      INTEGER REFERENCES users(id),
-  closed_at      TEXT,
-  expected_cash  REAL,
-  counted_cash   REAL,
-  difference     REAL,
-  notes          TEXT
-);
--- Solo una caja abierta por módulo
-CREATE UNIQUE INDEX IF NOT EXISTS ux_cash_open ON cash_sessions(module) WHERE status = 'abierta';
-
-CREATE TABLE IF NOT EXISTS cash_movements (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id  INTEGER NOT NULL REFERENCES cash_sessions(id),
-  type        TEXT NOT NULL CHECK (type IN ('ingreso','egreso')),
-  amount      REAL NOT NULL,
-  description TEXT NOT NULL,
-  user_id     INTEGER NOT NULL REFERENCES users(id),
-  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-
-CREATE TABLE IF NOT EXISTS sales (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  module         TEXT NOT NULL CHECK (module IN ('libreria','avicola')),
-  session_id     INTEGER NOT NULL REFERENCES cash_sessions(id),
-  user_id        INTEGER NOT NULL REFERENCES users(id),
-  total          REAL NOT NULL,
-  payment_method TEXT NOT NULL CHECK (payment_method IN ('efectivo','debito','credito','transferencia')),
-  status         TEXT NOT NULL DEFAULT 'completada' CHECK (status IN ('completada','anulada')),
-  created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  cancelled_by   INTEGER REFERENCES users(id),
-  cancelled_at   TEXT
-);
-CREATE INDEX IF NOT EXISTS ix_sales_module_date ON sales(module, created_at);
-
-CREATE TABLE IF NOT EXISTS sale_items (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  sale_id      INTEGER NOT NULL REFERENCES sales(id),
-  product_id   INTEGER NOT NULL REFERENCES products(id),
-  product_name TEXT NOT NULL,
-  unit         TEXT NOT NULL,
-  qty          REAL NOT NULL,
-  unit_price   REAL NOT NULL,
-  subtotal     REAL NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS stock_movements (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  product_id  INTEGER NOT NULL REFERENCES products(id),
-  type        TEXT NOT NULL CHECK (type IN ('inicial','ingreso','egreso','ajuste','venta','anulacion')),
-  qty         REAL NOT NULL,
-  stock_after REAL NOT NULL,
-  note        TEXT,
-  sale_id     INTEGER REFERENCES sales(id),
-  user_id     INTEGER NOT NULL REFERENCES users(id),
-  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
 `);
+
+// Copia consistente de la base a `file` (VACUUM INTO funciona aunque la app esté en uso).
+export function copyDatabase(file) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  db.exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
+  return file;
+}
+
+function migrate() {
+  const current = db.prepare('PRAGMA user_version').get().user_version;
+  if (current > migrations.length) {
+    throw new Error(`La base está en la versión ${current}, más nueva que este código (${migrations.length}).`);
+  }
+  const pending = migrations.slice(current);
+  if (pending.length === 0) return;
+
+  // Antes de tocar una base con datos, guarda una copia aparte (fuera de la rotación de backups).
+  const hasData = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'").get();
+  if (hasData) {
+    const file = copyDatabase(path.join(BACKUP_DIR, `pre-migracion-v${current}-${fileStamp()}.db`));
+    console.log(`Copia previa a la migración: ${file}`);
+  }
+
+  pending.forEach((migration, i) => {
+    const version = current + i + 1;
+    tx(() => {
+      migration.up(db);
+      db.exec(`PRAGMA user_version = ${version}`);
+    });
+    console.log(`Migración ${version} aplicada: ${migration.name}`);
+  });
+}
 
 export function tx(fn) {
   db.exec('BEGIN');
@@ -131,6 +73,18 @@ export function recordStockMovement({ productId, type, qty, stockAfter, note = n
 function seedIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM users').get();
   if (count > 0) return;
+
+  // En producción solo se crea el admin, con la contraseña de ADMIN_PASSWORD y sin datos de ejemplo.
+  if (IS_PRODUCTION) {
+    if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 8) {
+      throw new Error('Base vacía: definí ADMIN_PASSWORD (mínimo 8 caracteres) para crear el usuario admin.');
+    }
+    db.prepare(
+      "INSERT INTO users (username, password_hash, name, role, modules, created_at) VALUES ('admin', ?, 'Administrador', 'admin', 'libreria,avicola', now_local())"
+    ).run(bcrypt.hashSync(ADMIN_PASSWORD, 10));
+    console.log('Base de datos inicializada con el usuario admin.');
+    return;
+  }
 
   tx(() => {
     const insertUser = db.prepare(
@@ -178,4 +132,5 @@ function seedIfEmpty() {
   console.log('Base de datos inicializada con datos de ejemplo.');
 }
 
+migrate();
 seedIfEmpty();

@@ -26,6 +26,16 @@ npm run dev       # API en http://localhost:4000/api · Web en http://localhost:
 
 La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a empezar: `npm run seed:reset`.
 
+### Producción (servidor en la nube)
+
+Copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
+
+- `JWT_SECRET`: clave de al menos 32 caracteres para firmar las sesiones.
+- `CORS_ORIGIN`: dirección de la web, separadas por coma si hay varias. La app móvil no pasa por CORS y no hace falta agregarla.
+- `ADMIN_PASSWORD`: solo la primera vez, con la base vacía. En producción se crea únicamente el usuario `admin`, sin los usuarios ni productos de ejemplo.
+
+El login se bloquea por 15 minutos después de 10 intentos fallidos desde la misma IP (`LOGIN_MAX_ATTEMPTS`, `LOGIN_WINDOW_MINUTES`). Si la API está detrás de un proxy, `TRUST_PROXY` (por defecto `1` en producción) hace que se use la IP real del cliente.
+
 ### Backups
 
 La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la última tiene más de un día) y después una vez por día, y conserva las últimas 14. Para hacer una copia en el momento: `npm run backup --prefix backend`.
@@ -33,6 +43,10 @@ La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la
 Se configura con variables de entorno: `BACKUP_DIR` (carpeta), `BACKUP_INTERVAL_HOURS` (cada cuántas horas; `0` los desactiva) y `BACKUP_KEEP` (cuántas conservar). Para restaurar, frená la API y reemplazá `backend/data/app.db` por la copia elegida (borrando `app.db-wal` y `app.db-shm`).
 
 En un servidor en la nube conviene que `BACKUP_DIR` apunte a un disco o volumen distinto del de la base, o copiar esa carpeta a otro lugar, para no perder ambos a la vez.
+
+### Cambios en la base (migraciones)
+
+El esquema se arma con migraciones en `backend/src/migrations.js`, que corren solas al arrancar la API y quedan registradas en la base (`PRAGMA user_version`). Antes de aplicar una migración sobre una base con datos se guarda una copia `pre-migracion-…db` en la carpeta de backups. Para cambiar una tabla, agregá una migración nueva al final de la lista; nunca modifiques una que ya se haya aplicado.
 
 ### Zona horaria
 

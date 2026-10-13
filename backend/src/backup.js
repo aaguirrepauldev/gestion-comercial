@@ -1,18 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { db } from './db.js';
+import { copyDatabase } from './db.js';
 import { BACKUP_DIR, BACKUP_INTERVAL_HOURS, BACKUP_KEEP } from './config.js';
-import { nowLocal } from './time.js';
+import { fileStamp } from './time.js';
 
 const BACKUP_FILE = /^app-.*\.db$/;
 const listBackups = () => fs.readdirSync(BACKUP_DIR).filter((f) => BACKUP_FILE.test(f)).sort();
 
-// VACUUM INTO genera una copia consistente aunque la app esté en uso; después borra las más viejas.
+// Copia la base y después borra las copias más viejas.
 export function backupNow() {
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  const stamp = nowLocal().replace(' ', '_').replaceAll(':', '-');
-  const file = path.join(BACKUP_DIR, `app-${stamp}.db`);
-  db.exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
+  const file = copyDatabase(path.join(BACKUP_DIR, `app-${fileStamp()}.db`));
   for (const old of listBackups().slice(0, -BACKUP_KEEP)) fs.rmSync(path.join(BACKUP_DIR, old));
   return file;
 }

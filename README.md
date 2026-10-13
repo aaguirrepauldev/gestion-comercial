@@ -26,6 +26,10 @@ npm run dev       # API en http://localhost:4000/api · Web en http://localhost:
 
 La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a empezar: `npm run seed:reset`.
 
+### Tests
+
+`npm test --prefix backend` corre los tests del backend (flujo de caja y ventas, anulaciones, stock y permisos) contra una base temporal, sin tocar `backend/data/app.db`. También corren solos en GitHub en cada PR.
+
 ### Producción (servidor en la nube)
 
 Copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:

@@ -6,6 +6,7 @@ import { moduleApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { STOCK_MOVEMENT_TYPES } from '@/lib/constants';
 import { dateTime, money, qty } from '@/lib/format';
+import { useDebounced } from '@/lib/useDebounced';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
 
@@ -21,8 +22,10 @@ export default function StockPage() {
   const [editing, setEditing] = useState(null); // producto (o EMPTY_PRODUCT para alta)
   const [moving, setMoving] = useState(null); // producto al que se le registra un movimiento
 
+  const debouncedSearch = useDebounced(search.trim());
+
   const query = new URLSearchParams({
-    ...(search && { q: search }),
+    ...(debouncedSearch && { q: debouncedSearch }),
     ...(onlyLow && { low: '1' }),
     ...(showInactive && { all: '1' }),
   }).toString();

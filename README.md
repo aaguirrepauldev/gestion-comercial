@@ -26,6 +26,16 @@ npm run dev       # API en http://localhost:4000/api · Web en http://localhost:
 
 La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a empezar: `npm run seed:reset`.
 
+### Producción (servidor en la nube)
+
+Copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
+
+- `JWT_SECRET`: clave de al menos 32 caracteres para firmar las sesiones.
+- `CORS_ORIGIN`: dirección de la web, separadas por coma si hay varias. La app móvil no pasa por CORS y no hace falta agregarla.
+- `ADMIN_PASSWORD`: solo la primera vez, con la base vacía. En producción se crea únicamente el usuario `admin`, sin los usuarios ni productos de ejemplo.
+
+El login se bloquea por 15 minutos después de 10 intentos fallidos desde la misma IP (`LOGIN_MAX_ATTEMPTS`, `LOGIN_WINDOW_MINUTES`). Si la API está detrás de un proxy, `TRUST_PROXY` (por defecto `1` en producción) hace que se use la IP real del cliente.
+
 ### Backups
 
 La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la última tiene más de un día) y después una vez por día, y conserva las últimas 14. Para hacer una copia en el momento: `npm run backup --prefix backend`.

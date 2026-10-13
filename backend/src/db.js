@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
-import { BACKUP_DIR, DB_PATH } from './config.js';
+import { ADMIN_PASSWORD, BACKUP_DIR, DB_PATH, IS_PRODUCTION } from './config.js';
 import { migrations } from './migrations.js';
 import { fileStamp, nowLocal, todayLocal } from './time.js';
 
@@ -73,6 +73,18 @@ export function recordStockMovement({ productId, type, qty, stockAfter, note = n
 function seedIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM users').get();
   if (count > 0) return;
+
+  // En producción solo se crea el admin, con la contraseña de ADMIN_PASSWORD y sin datos de ejemplo.
+  if (IS_PRODUCTION) {
+    if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 8) {
+      throw new Error('Base vacía: definí ADMIN_PASSWORD (mínimo 8 caracteres) para crear el usuario admin.');
+    }
+    db.prepare(
+      "INSERT INTO users (username, password_hash, name, role, modules, created_at) VALUES ('admin', ?, 'Administrador', 'admin', 'libreria,avicola', now_local())"
+    ).run(bcrypt.hashSync(ADMIN_PASSWORD, 10));
+    console.log('Base de datos inicializada con el usuario admin.');
+    return;
+  }
 
   tx(() => {
     const insertUser = db.prepare(

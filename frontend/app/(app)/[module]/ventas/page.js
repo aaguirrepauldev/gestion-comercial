@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { moduleApi } from '@/lib/api';
@@ -24,6 +24,17 @@ export default function VentasPage() {
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState(null);
+  const qtyInputs = useRef(new Map()); // product_id -> input de cantidad del ticket
+  const [focusId, setFocusId] = useState(null);
+
+  // Lleva el foco a la cantidad de una línea recién agregada (para cargar el peso de los productos por kg).
+  useEffect(() => {
+    if (focusId === null) return;
+    const input = qtyInputs.current.get(focusId);
+    input?.focus();
+    input?.select();
+    setFocusId(null);
+  }, [focusId, cart]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -40,6 +51,12 @@ export default function VentasPage() {
 
   function addToCart(product) {
     setMessage(null);
+    // Los productos por kg se agregan sin cantidad y con el foco en el peso, en lugar de sumar 1 kg.
+    if (product.unit === 'kg') {
+      setCart((c) => (c.some((l) => l.product.id === product.id) ? c : [...c, { product, qty: '' }]));
+      setFocusId(product.id);
+      return;
+    }
     setCart((c) => {
       const existing = c.find((l) => l.product.id === product.id);
       if (existing) {
@@ -85,6 +102,7 @@ export default function VentasPage() {
 
   const cashClosed = cash.data === null && !cash.loading;
   const invalid = lines.some((l) => !(l.n > 0) || (l.product.unit === 'unidad' && !Number.isInteger(l.n)));
+  const missingWeight = lines.some((l) => l.product.unit === 'kg' && l.qty.trim() === '');
 
   return (
     <>
@@ -145,6 +163,8 @@ export default function VentasPage() {
                     <td>
                       <input
                         className="qty-input"
+                        ref={(el) => (el ? qtyInputs.current.set(l.product.id, el) : qtyInputs.current.delete(l.product.id))}
+                        placeholder={l.product.unit === 'kg' ? 'Peso' : ''}
                         inputMode="decimal"
                         value={l.qty}
                         onChange={(e) => updateQty(l.product.id, e.target.value)}
@@ -189,7 +209,11 @@ export default function VentasPage() {
           >
             {busy ? 'Procesando…' : `Cobrar ${money(total)}`}
           </button>
-          {invalid && <p className="small danger">Revisá las cantidades (los productos por unidad van enteros).</p>}
+          {missingWeight ? (
+            <p className="small danger">Ingresá el peso de los productos por kg.</p>
+          ) : (
+            invalid && <p className="small danger">Revisá las cantidades (los productos por unidad van enteros).</p>
+          )}
         </div>
       </section>
 

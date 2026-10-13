@@ -30,7 +30,7 @@ router.post('/', (req, res) => {
   if (role !== 'admin' && !mods) throw new HttpError(400, 'Asigná al menos un módulo');
 
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO users (username, password_hash, name, role, modules) VALUES (?, ?, ?, ?, ?)')
+    .prepare('INSERT INTO users (username, password_hash, name, role, modules, created_at) VALUES (?, ?, ?, ?, ?, now_local())')
     .run(cleanUsername, bcrypt.hashSync(String(password), 10), String(name).trim(), role, mods);
   res.status(201).json(toPublicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(lastInsertRowid)));
 });

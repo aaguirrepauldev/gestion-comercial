@@ -3,9 +3,15 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import { DB_PATH } from './config.js';
+import { nowLocal, todayLocal } from './time.js';
 
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 export const db = new DatabaseSync(DB_PATH);
+
+// Reemplazan a datetime('now','localtime') / date('now','localtime'), que usan la zona del servidor.
+// Los DEFAULT de las tablas no se pueden cambiar en bases ya creadas, por eso cada INSERT pasa la fecha.
+db.function('now_local', { deterministic: false }, () => nowLocal());
+db.function('today_local', { deterministic: false }, () => todayLocal());
 
 db.exec(`
 PRAGMA foreign_keys = ON;
@@ -117,8 +123,8 @@ export function tx(fn) {
 
 export function recordStockMovement({ productId, type, qty, stockAfter, note = null, saleId = null, userId }) {
   db.prepare(
-    `INSERT INTO stock_movements (product_id, type, qty, stock_after, note, sale_id, user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO stock_movements (product_id, type, qty, stock_after, note, sale_id, user_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, now_local())`
   ).run(productId, type, qty, stockAfter, note, saleId, userId);
 }
 
@@ -128,7 +134,7 @@ function seedIfEmpty() {
 
   tx(() => {
     const insertUser = db.prepare(
-      'INSERT INTO users (username, password_hash, name, role, modules) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO users (username, password_hash, name, role, modules, created_at) VALUES (?, ?, ?, ?, ?, now_local())'
     );
     const adminId = Number(
       insertUser.run('admin', bcrypt.hashSync('admin123', 10), 'Administrador', 'admin', 'libreria,avicola')
@@ -161,8 +167,8 @@ function seedIfEmpty() {
       ['avicola', 'AVI-010', 'Alimento balanceado ponedoras 25 kg', 'Alimento animal', 'unidad', 16000, 21500, 9, 3],
     ];
     const insertProduct = db.prepare(
-      `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
     );
     for (const p of products) {
       const id = Number(insertProduct.run(...p).lastInsertRowid);

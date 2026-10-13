@@ -32,7 +32,7 @@ router.get('/', (req, res) => {
     filter = 'date(s.created_at) = ?';
     args.push(String(req.query.date));
   } else {
-    filter = "date(s.created_at) = date('now','localtime')";
+    filter = 'date(s.created_at) = today_local()';
   }
   res.json(
     db
@@ -79,7 +79,7 @@ router.post('/', (req, res) => {
 
     const id = Number(
       db
-        .prepare('INSERT INTO sales (module, session_id, user_id, total, payment_method) VALUES (?, ?, ?, ?, ?)')
+        .prepare('INSERT INTO sales (module, session_id, user_id, total, payment_method, created_at) VALUES (?, ?, ?, ?, ?, now_local())')
         .run(module, session.id, req.user.id, total, payment_method).lastInsertRowid
     );
     const insertItem = db.prepare(
@@ -115,7 +115,7 @@ router.post('/:id/cancel', requireAdmin, (req, res) => {
       });
     }
     db.prepare(
-      "UPDATE sales SET status = 'anulada', cancelled_by = ?, cancelled_at = datetime('now','localtime') WHERE id = ?"
+      "UPDATE sales SET status = 'anulada', cancelled_by = ?, cancelled_at = now_local() WHERE id = ?"
     ).run(req.user.id, sale.id);
   });
   res.json(getSale(module, id));

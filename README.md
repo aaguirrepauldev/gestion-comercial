@@ -34,6 +34,10 @@ Se configura con variables de entorno: `BACKUP_DIR` (carpeta), `BACKUP_INTERVAL_
 
 En un servidor en la nube conviene que `BACKUP_DIR` apunte a un disco o volumen distinto del de la base, o copiar esa carpeta a otro lugar, para no perder ambos a la vez.
 
+### Cambios en la base (migraciones)
+
+El esquema se arma con migraciones en `backend/src/migrations.js`, que corren solas al arrancar la API y quedan registradas en la base (`PRAGMA user_version`). Antes de aplicar una migración sobre una base con datos se guarda una copia `pre-migracion-…db` en la carpeta de backups. Para cambiar una tabla, agregá una migración nueva al final de la lista; nunca modifiques una que ya se haya aplicado.
+
 ### Zona horaria
 
 Las fechas (ventas, cajas, movimientos) se guardan en la hora del negocio, no en la del servidor, así "hoy" es el mismo día aunque la API corra en la nube en UTC. Por defecto es `America/Argentina/Buenos_Aires`; se puede cambiar con la variable de entorno `TIME_ZONE` (por ejemplo `TIME_ZONE=America/Argentina/Cordoba`).

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "seed:reset": "node src/reset.js"
+    "seed:reset": "node src/reset.js",
+    "backup": "node src/backup-cli.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

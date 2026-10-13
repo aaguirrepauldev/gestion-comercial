@@ -4,6 +4,7 @@ import { CORS_ORIGIN, PORT } from './config.js';
 import './db.js';
 import { requireAdmin, requireAuth, requireModule } from './auth.js';
 import { HttpError } from './util.js';
+import { startBackupSchedule } from './backup.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import productRoutes from './routes/products.js';
@@ -40,4 +41,5 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
+startBackupSchedule();
 app.listen(PORT, () => console.log(`API escuchando en http://localhost:${PORT}/api`));

@@ -26,6 +26,10 @@ npm run dev       # API en http://localhost:4000/api · Web en http://localhost:
 
 La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a empezar: `npm run seed:reset`.
 
+### Zona horaria
+
+Las fechas (ventas, cajas, movimientos) se guardan en la hora del negocio, no en la del servidor, así "hoy" es el mismo día aunque la API corra en la nube en UTC. Por defecto es `America/Argentina/Buenos_Aires`; se puede cambiar con la variable de entorno `TIME_ZONE` (por ejemplo `TIME_ZONE=America/Argentina/Cordoba`).
+
 ### Usuarios de prueba
 
 | Usuario    | Contraseña    | Rol      | Módulos          |

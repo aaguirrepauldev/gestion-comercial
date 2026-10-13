@@ -1,13 +1,9 @@
 import { Router } from 'express';
 import { db } from '../db.js';
 import { getOpenSession, sessionSummary } from './cash.js';
+import { addDays, todayLocal } from '../time.js';
 
 const router = Router({ mergeParams: true });
-
-function localDate(d) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 router.get('/', (req, res) => {
   const { module } = req.params;
@@ -15,7 +11,7 @@ router.get('/', (req, res) => {
   const today = db
     .prepare(
       `SELECT COUNT(*) AS count, ROUND(COALESCE(SUM(total), 0), 2) AS total FROM sales
-       WHERE module = ? AND status = 'completada' AND date(created_at) = date('now','localtime')`
+       WHERE module = ? AND status = 'completada' AND date(created_at) = today_local()`
     )
     .get(module);
 
@@ -23,16 +19,15 @@ router.get('/', (req, res) => {
     db
       .prepare(
         `SELECT date(created_at) AS day, COUNT(*) AS count, ROUND(SUM(total), 2) AS total FROM sales
-         WHERE module = ? AND status = 'completada' AND date(created_at) >= date('now','localtime','-6 days')
+         WHERE module = ? AND status = 'completada' AND date(created_at) >= date(today_local(), '-6 days')
          GROUP BY day`
       )
       .all(module)
       .map((r) => [r.day, r])
   );
+  const todayDay = todayLocal();
   const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const day = localDate(d);
+    const day = addDays(todayDay, i - 6);
     return byDay.get(day) ?? { day, count: 0, total: 0 };
   });
 
@@ -40,7 +35,7 @@ router.get('/', (req, res) => {
     .prepare(
       `SELECT i.product_name AS name, i.unit, ROUND(SUM(i.qty), 3) AS qty, ROUND(SUM(i.subtotal), 2) AS total
        FROM sale_items i JOIN sales s ON s.id = i.sale_id
-       WHERE s.module = ? AND s.status = 'completada' AND date(s.created_at) = date('now','localtime')
+       WHERE s.module = ? AND s.status = 'completada' AND date(s.created_at) = today_local()
        GROUP BY i.product_id ORDER BY total DESC LIMIT 5`
     )
     .all(module);

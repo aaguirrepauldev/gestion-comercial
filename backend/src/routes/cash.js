@@ -95,7 +95,7 @@ router.post('/open', (req, res) => {
   if (amount < 0) throw new HttpError(400, 'El monto inicial no puede ser negativo');
 
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO cash_sessions (module, opened_by, opening_amount) VALUES (?, ?, ?)')
+    .prepare('INSERT INTO cash_sessions (module, opened_by, opening_amount, opened_at) VALUES (?, ?, ?, now_local())')
     .run(module, req.user.id, amount);
   res.status(201).json(sessionSummary(Number(lastInsertRowid)));
 });
@@ -113,7 +113,7 @@ router.post('/movements', (req, res) => {
     const { expected_cash } = sessionSummary(session.id);
     if (amount > expected_cash) throw new HttpError(400, 'El egreso supera el efectivo disponible en caja');
   }
-  db.prepare('INSERT INTO cash_movements (session_id, type, amount, description, user_id) VALUES (?, ?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO cash_movements (session_id, type, amount, description, user_id, created_at) VALUES (?, ?, ?, ?, ?, now_local())').run(
     session.id, type, amount, String(description).trim(), req.user.id
   );
   res.status(201).json(sessionSummary(session.id));
@@ -128,7 +128,7 @@ router.post('/close', (req, res) => {
   const { expected_cash } = sessionSummary(session.id);
   db.prepare(
     `UPDATE cash_sessions
-     SET status = 'cerrada', closed_by = ?, closed_at = datetime('now','localtime'),
+     SET status = 'cerrada', closed_by = ?, closed_at = now_local(),
          expected_cash = ?, counted_cash = ?, difference = ?, notes = ?
      WHERE id = ?`
   ).run(

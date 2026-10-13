@@ -73,8 +73,8 @@ router.post('/', requireAdmin, (req, res) => {
     const id = Number(
       db
         .prepare(
-          `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
         )
         .run(module, p.code, p.name, p.category, p.unit, p.cost, p.price, initialStock, p.min_stock).lastInsertRowid
     );

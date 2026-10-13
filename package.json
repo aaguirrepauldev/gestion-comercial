@@ -1,0 +1,13 @@
+{
+  "name": "gestion-comercial",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "seed:reset": "npm run seed:reset --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

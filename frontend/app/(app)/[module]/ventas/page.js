@@ -19,7 +19,7 @@ export default function VentasPage() {
   const sales = useLoad(() => moduleApi(module, '/sales'), [module]);
 
   const [search, setSearch] = useState('');
-  const [cart, setCart] = useState([]); // [{ product, qty: string }]
+  const [cart, setCart] = useState([]); // [{ product, qty: string }]: unidades, o gramos para los productos por kg
   const [payment, setPayment] = useState('efectivo');
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -43,9 +43,11 @@ export default function VentasPage() {
     );
   }, [products.data, search]);
 
+  // El peso se carga en gramos y se envía a la API en kg (el precio sigue siendo por kg).
   const lines = cart.map((l) => {
-    const n = Number(l.qty.replace(',', '.'));
-    return { ...l, n, subtotal: Number.isFinite(n) ? n * l.product.price : 0 };
+    const entered = Number(l.qty.replace(',', '.'));
+    const n = l.product.unit === 'kg' ? entered / 1000 : entered;
+    return { ...l, entered, n, subtotal: Number.isFinite(n) ? n * l.product.price : 0 };
   });
   const total = lines.reduce((acc, l) => acc + l.subtotal, 0);
 
@@ -101,7 +103,7 @@ export default function VentasPage() {
   }
 
   const cashClosed = cash.data === null && !cash.loading;
-  const invalid = lines.some((l) => !(l.n > 0) || (l.product.unit === 'unidad' && !Number.isInteger(l.n)));
+  const invalid = lines.some((l) => !(l.entered > 0) || !Number.isInteger(l.entered));
   const missingWeight = lines.some((l) => l.product.unit === 'kg' && l.qty.trim() === '');
 
   return (
@@ -158,18 +160,21 @@ export default function VentasPage() {
                   <tr key={l.product.id}>
                     <td>
                       {l.product.name}
-                      <div className="small muted">{money(l.product.price)}</div>
+                      <div className="small muted">
+                        {money(l.product.price)}
+                        {l.product.unit === 'kg' ? ' /kg' : ''}
+                      </div>
                     </td>
                     <td>
                       <input
                         className="qty-input"
                         ref={(el) => (el ? qtyInputs.current.set(l.product.id, el) : qtyInputs.current.delete(l.product.id))}
-                        placeholder={l.product.unit === 'kg' ? 'Peso' : ''}
-                        inputMode="decimal"
+                        placeholder={l.product.unit === 'kg' ? 'Gramos' : ''}
+                        inputMode="numeric"
                         value={l.qty}
                         onChange={(e) => updateQty(l.product.id, e.target.value)}
                       />
-                      <span className="small muted"> {l.product.unit === 'kg' ? 'kg' : 'u.'}</span>
+                      <span className="small muted"> {l.product.unit === 'kg' ? 'g' : 'u.'}</span>
                     </td>
                     <td className="num">{money(l.subtotal)}</td>
                     <td>
@@ -210,9 +215,9 @@ export default function VentasPage() {
             {busy ? 'Procesando…' : `Cobrar ${money(total)}`}
           </button>
           {missingWeight ? (
-            <p className="small danger">Ingresá el peso de los productos por kg.</p>
+            <p className="small danger">Ingresá el peso en gramos de los productos por kg.</p>
           ) : (
-            invalid && <p className="small danger">Revisá las cantidades (los productos por unidad van enteros).</p>
+            invalid && <p className="small danger">Revisá las cantidades: van enteras, en unidades o en gramos.</p>
           )}
         </div>
       </section>

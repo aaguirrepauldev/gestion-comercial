@@ -43,8 +43,10 @@ export default function VentasPage() {
     );
   }, [products.data, search]);
 
+  // En los productos por kg el peso se carga en gramos; n queda siempre en la unidad del producto (kg o unidades).
   const lines = cart.map((l) => {
-    const n = Number(l.qty.replace(',', '.'));
+    const entered = Number(l.qty.replace(',', '.'));
+    const n = l.product.unit === 'kg' ? entered / 1000 : entered;
     return { ...l, n, subtotal: Number.isFinite(n) ? n * l.product.price : 0 };
   });
   const total = lines.reduce((acc, l) => acc + l.subtotal, 0);
@@ -158,18 +160,21 @@ export default function VentasPage() {
                   <tr key={l.product.id}>
                     <td>
                       {l.product.name}
-                      <div className="small muted">{money(l.product.price)}</div>
+                      <div className="small muted">
+                        {money(l.product.price)}
+                        {l.product.unit === 'kg' ? ' /kg' : ''}
+                      </div>
                     </td>
                     <td>
                       <input
                         className="qty-input"
                         ref={(el) => (el ? qtyInputs.current.set(l.product.id, el) : qtyInputs.current.delete(l.product.id))}
-                        placeholder={l.product.unit === 'kg' ? 'Peso' : ''}
+                        placeholder={l.product.unit === 'kg' ? 'Gramos' : ''}
                         inputMode="decimal"
                         value={l.qty}
                         onChange={(e) => updateQty(l.product.id, e.target.value)}
                       />
-                      <span className="small muted"> {l.product.unit === 'kg' ? 'kg' : 'u.'}</span>
+                      <span className="small muted"> {l.product.unit === 'kg' ? 'g' : 'u.'}</span>
                     </td>
                     <td className="num">{money(l.subtotal)}</td>
                     <td>
@@ -210,7 +215,7 @@ export default function VentasPage() {
             {busy ? 'Procesando…' : `Cobrar ${money(total)}`}
           </button>
           {missingWeight ? (
-            <p className="small danger">Ingresá el peso de los productos por kg.</p>
+            <p className="small danger">Ingresá el peso en gramos de los productos por kg.</p>
           ) : (
             invalid && <p className="small danger">Revisá las cantidades (los productos por unidad van enteros).</p>
           )}

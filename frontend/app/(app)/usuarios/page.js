@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { api } from '@/lib/api';
+import { api, download, setToken } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { MODULES } from '@/lib/constants';
 import { useLoad } from '@/lib/useLoad';
@@ -13,6 +13,17 @@ export default function UsuariosPage() {
   const { user } = useAuth();
   const users = useLoad(() => api('/users'), []);
   const [editing, setEditing] = useState(null);
+  const [backup, setBackup] = useState({ busy: false, error: '' });
+
+  async function downloadBackup() {
+    setBackup({ busy: true, error: '' });
+    try {
+      await download('/backup');
+      setBackup({ busy: false, error: '' });
+    } catch (err) {
+      setBackup({ busy: false, error: err.message });
+    }
+  }
 
   if (user.role !== 'admin') return <div className="alert error">Requiere rol administrador.</div>;
 
@@ -20,10 +31,16 @@ export default function UsuariosPage() {
     <>
       <header className="page-header">
         <h1>Usuarios</h1>
-        <button className="btn primary" onClick={() => setEditing(EMPTY_USER)}>
-          + Nuevo usuario
-        </button>
+        <div className="form-actions">
+          <button className="btn outline" onClick={downloadBackup} disabled={backup.busy}>
+            {backup.busy ? 'Preparando copia…' : 'Descargar copia de la base'}
+          </button>
+          <button className="btn primary" onClick={() => setEditing(EMPTY_USER)}>
+            + Nuevo usuario
+          </button>
+        </div>
       </header>
+      {backup.error && <div className="alert error">{backup.error}</div>}
 
       <section className="card">
         {users.error && <div className="alert error">{users.error.message}</div>}
@@ -81,7 +98,9 @@ function UserForm({ initial, onClose, onSaved }) {
     try {
       const body = { ...form };
       if (!isNew && !body.password) delete body.password;
-      await api(isNew ? '/users' : `/users/${initial.id}`, { method: isNew ? 'POST' : 'PUT', body });
+      const saved = await api(isNew ? '/users' : `/users/${initial.id}`, { method: isNew ? 'POST' : 'PUT', body });
+      // Cambiar la propia contraseña cierra las sesiones anteriores: el servidor manda un token nuevo.
+      if (saved.token) setToken(saved.token);
       onSaved();
     } catch (err) {
       setError(err.message);
@@ -112,7 +131,7 @@ function UserForm({ initial, onClose, onSaved }) {
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required={isNew}
-            minLength={6}
+            minLength={8}
           />
         </label>
         <label>

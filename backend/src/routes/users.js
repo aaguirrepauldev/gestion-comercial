@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../db.js';
-import { MODULES, ROLES } from '../config.js';
-import { toPublicUser } from '../auth.js';
+import { MIN_PASSWORD_LENGTH, MODULES, ROLES } from '../config.js';
+import { signToken, toPublicUser } from '../auth.js';
 import { HttpError } from '../util.js';
 
 const router = Router();
@@ -13,7 +13,9 @@ function parseModules(modules) {
 }
 
 function checkPassword(password) {
-  if (String(password).length < 6) throw new HttpError(400, 'La contraseña debe tener al menos 6 caracteres');
+  if (String(password).length < MIN_PASSWORD_LENGTH) {
+    throw new HttpError(400, `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`);
+  }
 }
 
 router.get('/', (_req, res) => {
@@ -53,14 +55,21 @@ router.put('/:id', (req, res) => {
     throw new HttpError(400, 'No podés desactivarte ni quitarte el rol de administrador');
   }
 
+  if (body.password) checkPassword(body.password);
+
   db.prepare('UPDATE users SET name = ?, role = ?, modules = ?, active = ? WHERE id = ?').run(
     name, role, modules, active, id
   );
   if (body.password) {
-    checkPassword(body.password);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(String(body.password), 10), id);
+    // Cierra las sesiones abiertas de ese usuario con la contraseña anterior.
+    db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?').run(
+      bcrypt.hashSync(String(body.password), 10), id
+    );
   }
-  res.json(toPublicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(id)));
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  // Si el admin cambió su propia contraseña, recibe un token nuevo para no quedar afuera.
+  const token = body.password && id === req.user.id ? signToken(row) : undefined;
+  res.json({ ...toPublicUser(row), token });
 });
 
 export default router;

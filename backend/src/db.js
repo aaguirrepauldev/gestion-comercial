@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
-import { ADMIN_PASSWORD, BACKUP_DIR, DB_PATH, IS_PRODUCTION } from './config.js';
+import { ADMIN_PASSWORD, BACKUP_DIR, DB_PATH, IS_PRODUCTION, MIN_PASSWORD_LENGTH } from './config.js';
 import { migrations } from './migrations.js';
 import { fileStamp, nowLocal, todayLocal } from './time.js';
 
@@ -76,8 +76,8 @@ function seedIfEmpty() {
 
   // En producción solo se crea el admin, con la contraseña de ADMIN_PASSWORD y sin datos de ejemplo.
   if (IS_PRODUCTION) {
-    if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 8) {
-      throw new Error('Base vacía: definí ADMIN_PASSWORD (mínimo 8 caracteres) para crear el usuario admin.');
+    if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(`Base vacía: definí ADMIN_PASSWORD (mínimo ${MIN_PASSWORD_LENGTH} caracteres) para crear el usuario admin.`);
     }
     db.prepare(
       "INSERT INTO users (username, password_hash, name, role, modules, created_at) VALUES ('admin', ?, 'Administrador', 'admin', 'libreria,avicola', now_local())"

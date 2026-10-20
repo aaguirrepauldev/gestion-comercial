@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { db } from '../db.js';
-import { JWT_EXPIRES_IN, JWT_SECRET } from '../config.js';
-import { requireAuth, toPublicUser } from '../auth.js';
+import { requireAuth, signToken, toPublicUser } from '../auth.js';
 import { HttpError } from '../util.js';
 import { checkLoginAllowed, clearLoginFailures, recordLoginFailure } from '../loginLimiter.js';
 
@@ -20,8 +18,7 @@ router.post('/login', (req, res) => {
   clearLoginFailures(req.ip);
   if (!row.active) throw new HttpError(403, 'Usuario desactivado');
 
-  const token = jwt.sign({ sub: row.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-  res.json({ token, user: toPublicUser(row) });
+  res.json({ token: signToken(row), user: toPublicUser(row) });
 });
 
 router.get('/me', requireAuth, (req, res) => res.json(req.user));

@@ -104,5 +104,9 @@ export const migrations = [
         created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
       );
       `),
+  },  {
+    // Se incrementa al cambiar la contraseña: los tokens emitidos antes dejan de valer.
+    name: 'usuarios: versión de sesión',
+    up: (db) => db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0'),
   },
 ];

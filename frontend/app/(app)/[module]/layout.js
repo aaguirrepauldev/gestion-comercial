@@ -1,20 +1,10 @@
-'use client';
-
-import { useParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
+import ModuleGate from '@/components/ModuleGate';
 import { MODULES } from '@/lib/constants';
 
+// La web se exporta como sitio estático: se genera una copia de cada pantalla por módulo.
+export const dynamicParams = false;
+export const generateStaticParams = () => Object.keys(MODULES).map((module) => ({ module }));
+
 export default function ModuleLayout({ children }) {
-  const { module } = useParams();
-  const { user } = useAuth();
-
-  if (!MODULES[module]) return <div className="alert error">Módulo inexistente.</div>;
-  if (!user.modules.includes(module)) return <div className="alert error">No tenés acceso a este módulo.</div>;
-
-  // key={module} reinicia el estado de las páginas al cambiar de negocio
-  return (
-    <div key={module} style={{ '--accent': MODULES[module].accent }}>
-      {children}
-    </div>
-  );
+  return <ModuleGate>{children}</ModuleGate>;
 }

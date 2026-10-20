@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { moduleApi } from '@/lib/api';
@@ -9,6 +9,7 @@ import { PAYMENT_METHODS } from '@/lib/constants';
 import { money, qty, time } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import Receipt from '@/components/Receipt';
 import SalesTable from '@/components/SalesTable';
 
 export default function VentasPage() {
@@ -26,6 +27,22 @@ export default function VentasPage() {
   const [detail, setDetail] = useState(null);
   const qtyInputs = useRef(new Map()); // product_id -> input de cantidad del ticket
   const [focusId, setFocusId] = useState(null);
+  const [printing, setPrinting] = useState(null); // venta cuyo comprobante se está imprimiendo
+  const [autoPrint, setAutoPrint] = useState(true);
+  const stopPrinting = useCallback(() => setPrinting(null), []);
+
+  // Recuerda en este equipo si se imprime el comprobante al cobrar.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('gc_auto_print') === '0') setAutoPrint(false);
+    } catch {}
+  }, []);
+  function toggleAutoPrint(value) {
+    setAutoPrint(value);
+    try {
+      localStorage.setItem('gc_auto_print', value ? '1' : '0');
+    } catch {}
+  }
 
   // Lleva el foco a la cantidad de una línea recién agregada (para cargar el peso de los productos por kg).
   useEffect(() => {
@@ -80,7 +97,8 @@ export default function VentasPage() {
         body: { payment_method: payment, items: lines.map((l) => ({ product_id: l.product.id, qty: l.n })) },
       });
       setCart([]);
-      setMessage({ type: 'ok', text: `Venta #${sale.id} registrada por ${money(sale.total)}` });
+      setMessage({ type: 'ok', text: `Venta #${sale.id} registrada por ${money(sale.total)}`, sale });
+      if (autoPrint) setPrinting(sale);
       products.reload();
       sales.reload();
     } catch (err) {
@@ -205,7 +223,16 @@ export default function VentasPage() {
             ))}
           </div>
 
-          {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+          {message && (
+            <div className={`alert ${message.type} alert-row`}>
+              <span>{message.text}</span>
+              {message.sale && (
+                <button className="btn outline small" onClick={() => setPrinting(message.sale)}>
+                  Imprimir comprobante
+                </button>
+              )}
+            </div>
+          )}
 
           <button
             className="btn primary block lg"
@@ -214,6 +241,10 @@ export default function VentasPage() {
           >
             {busy ? 'Procesando…' : `Cobrar ${money(total)}`}
           </button>
+          <label className="small muted check">
+            <input type="checkbox" checked={autoPrint} onChange={(e) => toggleAutoPrint(e.target.checked)} /> Imprimir
+            comprobante al cobrar
+          </label>
           {missingWeight ? (
             <p className="small danger">Ingresá el peso en gramos de los productos por kg.</p>
           ) : (
@@ -249,13 +280,20 @@ export default function VentasPage() {
             <span>Total</span>
             <strong>{money(detail.total)}</strong>
           </div>
-          {user.role === 'admin' && detail.status === 'completada' && (
-            <button className="btn danger" onClick={() => cancelSale(detail)}>
-              Anular venta
+          <div className="row-actions">
+            <button className="btn outline" onClick={() => setPrinting(detail)}>
+              Imprimir comprobante
             </button>
-          )}
+            {user.role === 'admin' && detail.status === 'completada' && (
+              <button className="btn danger" onClick={() => cancelSale(detail)}>
+                Anular venta
+              </button>
+            )}
+          </div>
         </Modal>
       )}
+
+      {printing && <Receipt module={module} sale={printing} onDone={stopPrinting} />}
     </>
   );
 }

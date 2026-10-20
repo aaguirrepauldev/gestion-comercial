@@ -18,3 +18,11 @@ export const STOCK_MOVEMENT_TYPES = {
   venta: 'Venta',
   anulacion: 'Anulación',
 };
+
+// Encabezado del comprobante impreso (no válido como factura). Editá nombre y líneas de cada negocio
+// (dirección, teléfono, CUIT…). widthMm es el ancho imprimible: ~72 para papel de 80 mm, ~48 para 58 mm.
+export const RECEIPT = {
+  widthMm: 72,
+  libreria: { name: 'Librería', lines: [] },
+  avicola: { name: 'Avícola', lines: [] },
+};

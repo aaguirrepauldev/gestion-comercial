@@ -21,7 +21,7 @@ Requisitos: Node.js 22.13+ (probado con 24).
 
 ```bash
 npm run setup     # instala dependencias de raíz, backend y frontend
-npm run dev       # API en http://localhost:4000/api · Web en http://localhost:3000
+npm run dev       # API en http://localhost:4000/api · Web en http://localhost:2000
 ```
 
 La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a empezar: `npm run seed:reset`.
@@ -32,21 +32,26 @@ La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a
 
 ### Producción (servidor en la nube)
 
-Copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
+Para subirlo a Railway seguí la guía [docs/deploy.md](docs/deploy.md).
+
+En producción corre **un solo servicio**: `npm run build` compila la web como sitio estático (`frontend/out`) y `npm start` levanta la API, que también sirve la web en la misma dirección. Para otro servidor, copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
 
 - `JWT_SECRET`: clave de al menos 32 caracteres para firmar las sesiones.
-- `CORS_ORIGIN`: dirección de la web, separadas por coma si hay varias. La app móvil no pasa por CORS y no hace falta agregarla.
 - `ADMIN_PASSWORD`: solo la primera vez, con la base vacía. En producción se crea únicamente el usuario `admin`, sin los usuarios ni productos de ejemplo.
+
+`CORS_ORIGIN` solo hace falta si la web corre en otra dirección que la API. En Railway, además, la API no arranca sin `NODE_ENV=production` ni sin un volumen para la base.
+
+Las contraseñas tienen al menos 8 caracteres, y cambiar la de un usuario cierra sus sesiones abiertas. Los vendedores no ven el costo de los productos.
 
 El login se bloquea por 15 minutos después de 10 intentos fallidos desde la misma IP (`LOGIN_MAX_ATTEMPTS`, `LOGIN_WINDOW_MINUTES`). Si la API está detrás de un proxy, `TRUST_PROXY` (por defecto `1` en producción) hace que se use la IP real del cliente.
 
 ### Backups
 
-La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la última tiene más de un día) y después una vez por día, y conserva las últimas 14. Para hacer una copia en el momento: `npm run backup --prefix backend`.
+La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la última tiene más de un día) y después una vez por día, y conserva las últimas 14. Para hacer una copia en el momento: `npm run backup --prefix backend`, o desde la web, en **Usuarios → Descargar copia de la base** (solo admin).
 
 Se configura con variables de entorno: `BACKUP_DIR` (carpeta), `BACKUP_INTERVAL_HOURS` (cada cuántas horas; `0` los desactiva) y `BACKUP_KEEP` (cuántas conservar). Para restaurar, frená la API y reemplazá `backend/data/app.db` por la copia elegida (borrando `app.db-wal` y `app.db-shm`).
 
-En un servidor en la nube conviene que `BACKUP_DIR` apunte a un disco o volumen distinto del de la base, o copiar esa carpeta a otro lugar, para no perder ambos a la vez.
+En un servidor en la nube conviene que `BACKUP_DIR` apunte a un disco o volumen distinto del de la base, o descargar copias seguido, para no perder ambos a la vez. En Railway hay un solo volumen por servicio, así que descargá la copia desde la web.
 
 ### Cambios en la base (migraciones)
 

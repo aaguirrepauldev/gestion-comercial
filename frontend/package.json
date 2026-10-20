@@ -2,10 +2,12 @@
   "name": "gestion-comercial-frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev": "next dev -p 2000",
-    "build": "next build",
-    "start": "next start -p 2000"
+    "build": "next build"
   },
   "dependencies": {
     "next": "^16.4.0",

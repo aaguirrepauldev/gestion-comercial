@@ -14,11 +14,15 @@ export async function startServer() {
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}/api`;
 
-  async function request(method, url, { token, body } = {}) {
+  function raw(method, url, { token, body } = {}) {
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const res = await fetch(`${base}${url}`, { method, headers, body: body && JSON.stringify(body) });
+    return fetch(`${base}${url}`, { method, headers, body: body && JSON.stringify(body) });
+  }
+
+  async function request(method, url, options) {
+    const res = await raw(method, url, options);
     return { status: res.status, body: await res.json().catch(() => null) };
   }
 
@@ -33,5 +37,5 @@ export async function startServer() {
     fs.rmSync(dir, { recursive: true, force: true });
   };
 
-  return { request, login, close };
+  return { raw, request, login, close };
 }

@@ -50,11 +50,22 @@ export default function DashboardPage() {
           <span className="small muted">productos bajo el mínimo</span>
         </div>
         <div className="card stat">
-          <span className="muted">Inventario (a costo)</span>
-          <strong>{money(data.inventory.cost_value)}</strong>
-          <span className="small muted">
-            {data.inventory.products} productos · venta {money(data.inventory.retail_value)}
-          </span>
+          {/* El costo solo llega para los administradores */}
+          {data.inventory.cost_value !== undefined ? (
+            <>
+              <span className="muted">Inventario (a costo)</span>
+              <strong>{money(data.inventory.cost_value)}</strong>
+              <span className="small muted">
+                {data.inventory.products} productos · venta {money(data.inventory.retail_value)}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="muted">Inventario (a precio de venta)</span>
+              <strong>{money(data.inventory.retail_value)}</strong>
+              <span className="small muted">{data.inventory.products} productos</span>
+            </>
+          )}
         </div>
       </section>
 

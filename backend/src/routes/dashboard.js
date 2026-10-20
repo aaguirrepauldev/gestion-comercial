@@ -55,6 +55,8 @@ router.get('/', (req, res) => {
     )
     .get(module);
 
+  if (req.user.role !== 'admin') delete inventory.cost_value;
+
   const open = getOpenSession(module);
   res.json({
     today,

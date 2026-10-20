@@ -84,7 +84,7 @@ export default function StockPage() {
               <th>Código</th>
               <th>Producto</th>
               <th>Categoría</th>
-              <th className="num">Costo</th>
+              {isAdmin && <th className="num">Costo</th>}
               <th className="num">Precio</th>
               <th className="num">Stock</th>
               <th className="num">Mínimo</th>
@@ -99,7 +99,7 @@ export default function StockPage() {
                   {p.name} {p.unit === 'kg' && <span className="badge">kg</span>}
                 </td>
                 <td className="muted">{p.category}</td>
-                <td className="num">{money(p.cost)}</td>
+                {isAdmin && <td className="num">{money(p.cost)}</td>}
                 <td className="num">{money(p.price)}</td>
                 <td className={`num ${p.stock <= p.min_stock ? 'danger strong' : ''}`}>{qty(p.stock, p.unit)}</td>
                 <td className="num muted">{qty(p.min_stock, p.unit)}</td>

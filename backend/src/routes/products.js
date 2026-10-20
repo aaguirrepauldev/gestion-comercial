@@ -11,6 +11,13 @@ function getProduct(module, id) {
   return p;
 }
 
+// El costo (y con él el margen) solo lo ven los administradores.
+const forRole = (user, product) => {
+  if (user.role === 'admin') return product;
+  const { cost: _cost, ...rest } = product;
+  return rest;
+};
+
 function parseProduct(body) {
   const name = String(body.name ?? '').trim();
   if (!name) throw new HttpError(400, 'El nombre es obligatorio');
@@ -39,7 +46,7 @@ router.get('/', (req, res) => {
     args.push(`%${q}%`, `%${q}%`, `%${q}%`);
   }
   if (low) sql += ' AND stock <= min_stock';
-  res.json(db.prepare(`${sql} ORDER BY name`).all(...args));
+  res.json(db.prepare(`${sql} ORDER BY name`).all(...args).map((p) => forRole(req.user, p)));
 });
 
 router.get('/movements', (req, res) => {
@@ -136,7 +143,7 @@ router.post('/:id/stock', (req, res) => {
       userId: req.user.id,
     });
   });
-  res.json(getProduct(module, id));
+  res.json(forRole(req.user, getProduct(module, id)));
 });
 
 export default router;

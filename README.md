@@ -32,7 +32,7 @@ La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a
 
 ### Producción (servidor en la nube)
 
-Para subirlo a Render o Railway seguí la guía [docs/deploy.md](docs/deploy.md).
+Para subirlo a Render, a una VM gratis de Google Cloud o a Railway seguí la guía [docs/deploy.md](docs/deploy.md).
 
 En producción corre **un solo servicio**: `npm run build` compila la web como sitio estático (`frontend/out`) y `npm start` levanta la API, que también sirve la web en la misma dirección. Para otro servidor, copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
 

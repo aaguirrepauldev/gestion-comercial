@@ -1,0 +1,29 @@
+# Blueprint de Render: un solo servicio web (API + web estática) con un disco para la base SQLite.
+# Guía paso a paso en docs/deploy.md.
+services:
+  - type: web
+    name: gestion-comercial
+    runtime: node
+    # El plan gratis no admite discos: la base se perdería en cada deploy.
+    plan: starter
+    region: virginia
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: datos
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      # Le dice a la API dónde está el disco (Render no lo informa solo).
+      - key: VOLUME_PATH
+        value: /var/data
+      - key: JWT_SECRET
+        generateValue: true
+      # Render la pide al crear el blueprint. Solo se usa la primera vez, con la base vacía.
+      - key: ADMIN_PASSWORD
+        sync: false

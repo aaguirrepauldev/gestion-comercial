@@ -32,14 +32,14 @@ La primera vez se crea `backend/data/app.db` con datos de ejemplo. Para volver a
 
 ### Producción (servidor en la nube)
 
-Para subirlo a Railway seguí la guía [docs/deploy.md](docs/deploy.md).
+Para subirlo a Render o Railway seguí la guía [docs/deploy.md](docs/deploy.md).
 
 En producción corre **un solo servicio**: `npm run build` compila la web como sitio estático (`frontend/out`) y `npm start` levanta la API, que también sirve la web en la misma dirección. Para otro servidor, copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
 
 - `JWT_SECRET`: clave de al menos 32 caracteres para firmar las sesiones.
 - `ADMIN_PASSWORD`: solo la primera vez, con la base vacía. En producción se crea únicamente el usuario `admin`, sin los usuarios ni productos de ejemplo.
 
-`CORS_ORIGIN` solo hace falta si la web corre en otra dirección que la API. En Railway, además, la API no arranca sin `NODE_ENV=production` ni sin un volumen para la base.
+`CORS_ORIGIN` solo hace falta si la web corre en otra dirección que la API. En Render y en Railway, además, la API no arranca sin `NODE_ENV=production` ni sin un disco (volumen) para la base.
 
 Las contraseñas tienen al menos 8 caracteres, y cambiar la de un usuario cierra sus sesiones abiertas. Los vendedores no ven el costo de los productos.
 
@@ -51,7 +51,7 @@ La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la
 
 Se configura con variables de entorno: `BACKUP_DIR` (carpeta), `BACKUP_INTERVAL_HOURS` (cada cuántas horas; `0` los desactiva) y `BACKUP_KEEP` (cuántas conservar). Para restaurar, frená la API y reemplazá `backend/data/app.db` por la copia elegida (borrando `app.db-wal` y `app.db-shm`).
 
-En un servidor en la nube conviene que `BACKUP_DIR` apunte a un disco o volumen distinto del de la base, o descargar copias seguido, para no perder ambos a la vez. En Railway hay un solo volumen por servicio, así que descargá la copia desde la web.
+En un servidor en la nube conviene que `BACKUP_DIR` apunte a un disco o volumen distinto del de la base, o descargar copias seguido, para no perder ambos a la vez. En Render y en Railway hay un solo disco por servicio, así que descargá la copia desde la web.
 
 ### Cambios en la base (migraciones)
 

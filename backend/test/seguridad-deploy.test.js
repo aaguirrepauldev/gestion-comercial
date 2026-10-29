@@ -1,6 +1,8 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
 import { startServer } from './helpers.js';
 
 let api, admin, vendedor;
@@ -72,14 +74,16 @@ describe('copia de la base', () => {
   });
 });
 
+// Importa la configuración en un proceso aparte con las variables dadas.
+const startWith = (platformEnv) => (env) =>
+  spawnSync(process.execPath, ['-e', "await import('./src/config.js')", '--input-type=module'], {
+    cwd: new URL('..', import.meta.url),
+    env: { PATH: process.env.PATH, ...platformEnv, ...env },
+    encoding: 'utf8',
+  });
+
 describe('arranque en Railway', () => {
-  // Importa la configuración en un proceso aparte con las variables dadas.
-  const start = (env) =>
-    spawnSync(process.execPath, ['-e', "await import('./src/config.js')", '--input-type=module'], {
-      cwd: new URL('..', import.meta.url),
-      env: { PATH: process.env.PATH, RAILWAY_PROJECT_ID: 'x', ...env },
-      encoding: 'utf8',
-    });
+  const start = startWith({ RAILWAY_PROJECT_ID: 'x' });
   const prod = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32) };
 
   test('no arranca sin NODE_ENV=production', () => {
@@ -102,6 +106,35 @@ describe('arranque en Railway', () => {
 
   test('arranca con NODE_ENV y volumen', () => {
     const r = start({ ...prod, RAILWAY_VOLUME_MOUNT_PATH: '/data' });
+    assert.equal(r.status, 0, r.stderr);
+  });
+});
+
+describe('arranque en Render', () => {
+  const start = startWith({ RENDER: 'true' });
+  const prod = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32) };
+  const disk = os.tmpdir();
+
+  test('no arranca sin NODE_ENV=production', () => {
+    const r = start({ VOLUME_PATH: disk });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /NODE_ENV=production/);
+  });
+
+  test('no arranca sin VOLUME_PATH', () => {
+    const r = start(prod);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /volumen/);
+  });
+
+  test('no arranca si el disco no está montado', () => {
+    const r = start({ ...prod, VOLUME_PATH: path.join(disk, 'no-existe-' + process.pid) });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /no está montado/);
+  });
+
+  test('arranca con NODE_ENV y disco', () => {
+    const r = start({ ...prod, VOLUME_PATH: disk });
     assert.equal(r.status, 0, r.stderr);
   });
 });

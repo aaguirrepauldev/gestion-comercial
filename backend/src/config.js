@@ -1,22 +1,30 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// En Railway, sin NODE_ENV=production la API arrancaría con los usuarios de ejemplo (admin123…),
-// una clave JWT conocida y CORS abierto. Se niega a arrancar para que eso no llegue a la nube.
+// En la nube (Railway o Render), sin NODE_ENV=production la API arrancaría con los usuarios de ejemplo
+// (admin123…), una clave JWT conocida y CORS abierto. Se niega a arrancar para que eso no llegue a internet.
 const ON_RAILWAY = Boolean(process.env.RAILWAY_ENVIRONMENT_NAME ?? process.env.RAILWAY_PROJECT_ID);
-if (ON_RAILWAY && !IS_PRODUCTION) {
-  throw new Error('En Railway hay que definir NODE_ENV=production (si no, se crearían los usuarios de ejemplo).');
+const ON_RENDER = process.env.RENDER === 'true';
+const PLATFORM = ON_RAILWAY ? 'Railway' : ON_RENDER ? 'Render' : null;
+if (PLATFORM && !IS_PRODUCTION) {
+  throw new Error(`En ${PLATFORM} hay que definir NODE_ENV=production (si no, se crearían los usuarios de ejemplo).`);
 }
 
 export const PORT = Number(process.env.PORT ?? 4000);
 
-// Railway borra el disco del contenedor en cada deploy: la base tiene que vivir en un volumen.
-// Con un volumen montado, la base va ahí por defecto (RAILWAY_VOLUME_MOUNT_PATH lo define Railway).
-const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH;
-if (ON_RAILWAY && !VOLUME) {
-  throw new Error('Falta un volumen en Railway: sin él la base se borra en cada deploy (ver docs/deploy.md).');
+// Las plataformas borran el disco del contenedor en cada deploy: la base tiene que vivir en un volumen.
+// Con un volumen montado, la base va ahí por defecto. Railway define RAILWAY_VOLUME_MOUNT_PATH;
+// en Render el disco no avisa dónde está, así que render.yaml define VOLUME_PATH con su ruta.
+const VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH ?? process.env.VOLUME_PATH;
+if (PLATFORM && !VOLUME) {
+  throw new Error(`Falta un volumen en ${PLATFORM}: sin él la base se borra en cada deploy (ver docs/deploy.md).`);
+}
+// Si el disco no se montó (por ejemplo, en el plan gratis de Render, que no tiene), la carpeta no existe.
+if (ON_RENDER && !fs.existsSync(VOLUME)) {
+  throw new Error(`El disco ${VOLUME} no está montado en Render: sin él la base se borra en cada deploy (ver docs/deploy.md).`);
 }
 export const DB_PATH =
   process.env.DB_PATH ??

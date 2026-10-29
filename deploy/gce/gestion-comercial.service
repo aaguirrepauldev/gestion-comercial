@@ -1,0 +1,18 @@
+[Unit]
+Description=Gestion comercial (API + web)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gestion
+WorkingDirectory=/opt/gestion-comercial/backend
+EnvironmentFile=/etc/gestion-comercial.env
+# node directo (sin npm) para que el SIGTERM de systemd le llegue a la API y cierre bien la base.
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

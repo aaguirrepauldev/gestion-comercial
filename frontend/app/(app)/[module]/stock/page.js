@@ -106,8 +106,16 @@ export default function StockPage() {
                   {p.name} {p.unit === 'kg' && <span className="badge">kg</span>}
                 </td>
                 <td className="muted">{p.category}</td>
-                {isAdmin && <td className="num">{money(p.cost)}</td>}
-                <td className="num">{money(p.price)}</td>
+                {isAdmin && (
+                  <td className="num">
+                    {money(p.cost)}
+                    {p.unit === 'kg' && <span className="small muted"> /kg</span>}
+                  </td>
+                )}
+                <td className="num">
+                  {money(p.price)}
+                  {p.unit === 'kg' && <span className="small muted"> /kg</span>}
+                </td>
                 <td className={`num ${p.stock <= p.min_stock ? 'danger strong' : ''}`}>{qty(p.stock, p.unit)}</td>
                 <td className="num muted">{qty(p.min_stock, p.unit)}</td>
                 <td className="actions">
@@ -243,7 +251,7 @@ function ProductForm({ module, product, onClose, onSaved }) {
           <input type="number" step="any" min="0" value={form.min_stock} onChange={set('min_stock')} />
         </label>
         <label>
-          Costo
+          Costo {form.unit === 'kg' && '(por kg)'}
           <input type="number" step="0.01" min="0" value={form.cost} onChange={set('cost')} />
         </label>
         <label>

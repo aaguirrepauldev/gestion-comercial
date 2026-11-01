@@ -25,3 +25,21 @@ export function normalizeQty(unit, value, { allowZero = false } = {}) {
   }
   return qty;
 }
+
+// Números como vienen de una planilla argentina: "$ 1.234,50", "1234,5", "1234.50" o "1.500" (mil quinientos).
+export function parseDecimal(value, label) {
+  if (typeof value === 'number') return toNumber(value, label);
+  let s = String(value ?? '').replace(/[$\s]/g, '');
+  if (s === '') return toNumber(s, label);
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma !== -1 && lastDot !== -1) {
+    // El separador que aparece último es el decimal; el otro es de miles.
+    s = lastComma > lastDot ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  } else if (lastComma !== -1) {
+    s = /^-?\d{1,3}(,\d{3}){2,}$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
+  } else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, '');
+  }
+  return toNumber(s, label);
+}

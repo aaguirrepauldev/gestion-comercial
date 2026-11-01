@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { moduleApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { STOCK_MOVEMENT_TYPES } from '@/lib/constants';
+import { downloadCatalogTemplate, parseCatalog, readTextFile } from '@/lib/csv';
 import { dateTime, money, qty } from '@/lib/format';
 import { useDebounced } from '@/lib/useDebounced';
 import { useLoad } from '@/lib/useLoad';
@@ -21,6 +22,7 @@ export default function StockPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState(null); // producto (o EMPTY_PRODUCT para alta)
   const [moving, setMoving] = useState(null); // producto al que se le registra un movimiento
+  const [importing, setImporting] = useState(false);
 
   const debouncedSearch = useDebounced(search.trim());
 
@@ -52,9 +54,14 @@ export default function StockPage() {
       <header className="page-header">
         <h1>Stock</h1>
         {isAdmin && (
-          <button className="btn primary" onClick={() => setEditing(EMPTY_PRODUCT)}>
-            + Nuevo producto
-          </button>
+          <div className="header-actions">
+            <button className="btn outline" onClick={() => setImporting(true)}>
+              Importar CSV
+            </button>
+            <button className="btn primary" onClick={() => setEditing(EMPTY_PRODUCT)}>
+              + Nuevo producto
+            </button>
+          </div>
         )}
       </header>
 
@@ -171,6 +178,7 @@ export default function StockPage() {
           }}
         />
       )}
+      {importing && <ImportCatalog module={module} onClose={() => setImporting(false)} onImported={refresh} />}
       {moving && (
         <StockMovementForm
           module={module}
@@ -313,6 +321,148 @@ function StockMovementForm({ module, product, isAdmin, onClose, onSaved }) {
           <button className="btn primary">Registrar</button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+const IMPORT_ACTIONS = {
+  create: { label: 'Nuevo', className: 'badge ok' },
+  update: { label: 'Actualiza', className: 'badge' },
+  error: { label: 'Error', className: 'badge danger' },
+};
+
+// Carga masiva: elegir el CSV, ver la vista previa validada por el servidor y confirmar.
+function ImportCatalog({ module, onClose, onImported }) {
+  const [fileName, setFileName] = useState('');
+  const [rows, setRows] = useState(null); // filas leídas del CSV
+  const [preview, setPreview] = useState(null); // respuesta del servidor (dry_run o importación final)
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const done = preview && !preview.dry_run;
+
+  const send = (dryRun, data = rows) =>
+    moduleApi(module, '/products/import', { method: 'POST', body: { rows: data, dry_run: dryRun } });
+
+  async function pickFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
+    setPreview(null);
+    setRows(null);
+    setFileName(file.name);
+    setBusy(true);
+    try {
+      const parsed = parseCatalog(await readTextFile(file));
+      setRows(parsed.rows);
+      setPreview(await send(true, parsed.rows));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmImport() {
+    setBusy(true);
+    setError('');
+    try {
+      setPreview(await send(false));
+      onImported();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const s = preview?.summary;
+  const valid = s ? s.create + s.update : 0;
+
+  return (
+    <Modal title="Importar productos desde CSV" onClose={onClose} wide>
+      {!done && (
+        <>
+          <p className="muted">
+            Columnas: <strong>nombre</strong> y <strong>precio</strong> (obligatorias), codigo, categoria, unidad
+            (unidad o kg), costo, stock y stock_minimo. Se aceptan precios como 1.234,50. Si el código ya existe, se
+            actualizan sus datos pero no el stock (eso se corrige con un movimiento de ajuste).
+          </p>
+          <div className="toolbar">
+            <button type="button" className="btn ghost" onClick={() => downloadCatalogTemplate(module)}>
+              Descargar plantilla
+            </button>
+            <label className="btn outline">
+              {fileName ? 'Elegir otro archivo' : 'Elegir archivo CSV'}
+              <input type="file" accept=".csv,text/csv" onChange={pickFile} hidden />
+            </label>
+            {fileName && <span className="muted">{fileName}</span>}
+          </div>
+        </>
+      )}
+
+      {busy && <p className="muted">Procesando…</p>}
+      {error && <div className="alert error">{error}</div>}
+
+      {s && (
+        <div className={`alert ${done ? 'ok' : s.error ? 'warn' : ''}`}>
+          {done ? 'Listo: ' : `${rows.length} filas leídas: `}
+          {s.create} {done ? 'creados' : 'nuevos'}, {s.update} {done ? 'actualizados' : 'a actualizar'}
+          {s.error > 0 && `, ${s.error} con error${done ? ' (no se importaron)' : ' (se van a omitir)'}`}.
+        </div>
+      )}
+
+      {preview && (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Fila</th>
+                <th />
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th className="num">Costo</th>
+                <th className="num">Precio</th>
+                <th className="num">Stock</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.rows.map((r) => (
+                <tr key={r.line}>
+                  <td className="muted">{r.line}</td>
+                  <td>
+                    <span className={IMPORT_ACTIONS[r.action].className}>{IMPORT_ACTIONS[r.action].label}</span>
+                  </td>
+                  <td className="muted">{r.code}</td>
+                  <td>
+                    {r.name} {r.unit === 'kg' && <span className="badge">kg</span>}
+                  </td>
+                  <td className="muted">{r.category}</td>
+                  <td className="num">{r.action !== 'error' && money(r.cost)}</td>
+                  <td className="num">{r.action !== 'error' && money(r.price)}</td>
+                  <td className="num">{r.action === 'create' && qty(r.stock, r.unit)}</td>
+                  <td className={r.action === 'error' ? 'danger' : 'muted'}>
+                    {r.error ?? (r.stockIgnored ? 'El stock del archivo no se aplica' : '')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="form-actions">
+        <button type="button" className="btn ghost" onClick={onClose}>
+          {done ? 'Cerrar' : 'Cancelar'}
+        </button>
+        {preview && !done && (
+          <button className="btn primary" onClick={confirmImport} disabled={busy || valid === 0}>
+            Importar {valid} producto{valid === 1 ? '' : 's'}
+          </button>
+        )}
+      </div>
     </Modal>
   );
 }

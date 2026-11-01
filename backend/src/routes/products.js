@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, recordStockMovement, tx } from '../db.js';
 import { requireAdmin } from '../auth.js';
-import { HttpError, normalizeQty, round2, round3, toNumber } from '../util.js';
+import { HttpError, normalizeQty, parseDecimal, round2, round3, toNumber } from '../util.js';
 
 const router = Router({ mergeParams: true });
 
@@ -91,6 +91,109 @@ router.post('/', requireAdmin, (req, res) => {
     return id;
   });
   res.status(201).json(getProduct(module, id));
+});
+
+const MAX_IMPORT_ROWS = 5000;
+
+function parseUnit(value) {
+  const u = String(value ?? '').trim().toLowerCase().replace(/^por\s+/, '').replace(/\.$/, '');
+  if (['', 'u', 'un', 'uni', 'unid', 'unidad', 'unidades'].includes(u)) return 'unidad';
+  if (['kg', 'kgs', 'kilo', 'kilos', 'kilogramo', 'kilogramos'].includes(u)) return 'kg';
+  throw new HttpError(400, `Unidad "${value}" inválida (usá "unidad" o "kg")`);
+}
+
+// Una fila del CSV (todo texto) a los campos de un producto, con números en formato local.
+function parseImportRow(row) {
+  const unit = parseUnit(row.unit);
+  const num = (value, label) => (String(value ?? '').trim() === '' ? undefined : parseDecimal(value, label));
+  const product = parseProduct({
+    code: row.code,
+    name: row.name,
+    category: row.category,
+    unit,
+    price: num(row.price, 'Precio') ?? '',
+    cost: num(row.cost, 'Costo') ?? 0,
+    min_stock: num(row.min_stock, 'Stock mínimo') ?? 0,
+  });
+  const stock = num(row.stock, 'Stock');
+  return { product, stock: stock === undefined || stock === 0 ? 0 : normalizeQty(unit, stock) };
+}
+
+// Carga masiva del catálogo desde un CSV ya leído en el navegador.
+// Con dry_run solo devuelve qué pasaría con cada fila; sin él aplica las filas válidas en una transacción.
+// Los productos se buscan por código (o por nombre si la fila no trae código): si existen se actualizan
+// sus datos, pero el stock no se toca (para eso están los movimientos); si no, se crean con su stock inicial.
+router.post('/import', requireAdmin, (req, res) => {
+  const { module } = req.params;
+  const rows = req.body?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) throw new HttpError(400, 'El archivo no tiene filas para importar');
+  if (rows.length > MAX_IMPORT_ROWS) throw new HttpError(400, `Máximo ${MAX_IMPORT_ROWS} productos por archivo`);
+  const dryRun = Boolean(req.body.dry_run);
+
+  const byCode = new Map();
+  const byName = new Map();
+  for (const p of db.prepare('SELECT id, code, name, stock FROM products WHERE module = ?').all(module)) {
+    if (p.code) byCode.set(p.code.toLowerCase(), p);
+    const key = p.name.trim().toLowerCase();
+    byName.set(key, byName.has(key) ? null : p); // null = nombre repetido, no se puede usar para identificar
+  }
+
+  const seen = new Set();
+  const results = rows.map((row, i) => {
+    const line = Number(row?.line) || i + 2;
+    try {
+      const { product, stock } = parseImportRow(row ?? {});
+      const key = product.code ? `c:${product.code.toLowerCase()}` : `n:${product.name.toLowerCase()}`;
+      if (seen.has(key)) {
+        throw new HttpError(400, product.code ? `Código ${product.code} repetido en el archivo` : 'Producto repetido en el archivo');
+      }
+      seen.add(key);
+      const existing = product.code ? byCode.get(product.code.toLowerCase()) : byName.get(product.name.toLowerCase());
+      if (!product.code && existing === null) {
+        throw new HttpError(400, 'Hay varios productos con ese nombre; agregale el código para identificarlo');
+      }
+      if (existing && product.unit === 'unidad' && !Number.isInteger(existing.stock)) {
+        throw new HttpError(400, 'No se puede pasar a "unidad" un producto con stock fraccionado');
+      }
+      if (existing && !product.code && existing.code) product.code = existing.code;
+      return { line, action: existing ? 'update' : 'create', id: existing?.id, product, stock, stockIgnored: Boolean(existing && stock) };
+    } catch (err) {
+      if (!(err instanceof HttpError)) throw err;
+      return { line, action: 'error', error: err.message, name: String(row?.name ?? '').trim(), code: String(row?.code ?? '').trim() };
+    }
+  });
+
+  if (!dryRun) {
+    const insert = db.prepare(
+      `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
+    );
+    const update = db.prepare(
+      'UPDATE products SET code = ?, name = ?, category = ?, unit = ?, cost = ?, price = ?, min_stock = ? WHERE id = ?'
+    );
+    tx(() => {
+      for (const r of results) {
+        const p = r.product;
+        if (r.action === 'create') {
+          r.id = Number(
+            insert.run(module, p.code, p.name, p.category, p.unit, p.cost, p.price, r.stock, p.min_stock).lastInsertRowid
+          );
+          if (r.stock > 0) {
+            recordStockMovement({ productId: r.id, type: 'inicial', qty: r.stock, stockAfter: r.stock, note: 'Importación CSV', userId: req.user.id });
+          }
+        } else if (r.action === 'update') {
+          update.run(p.code, p.name, p.category, p.unit, p.cost, p.price, p.min_stock, r.id);
+        }
+      }
+    });
+  }
+
+  const count = (action) => results.filter((r) => r.action === action).length;
+  res.status(dryRun ? 200 : 201).json({
+    dry_run: dryRun,
+    summary: { create: count('create'), update: count('update'), error: count('error') },
+    rows: results.map(({ product, ...r }) => ({ ...product, ...r })),
+  });
 });
 
 router.put('/:id', requireAdmin, (req, res) => {

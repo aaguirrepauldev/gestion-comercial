@@ -19,7 +19,8 @@ const app = express();
 app.set('trust proxy', TRUST_PROXY);
 app.disable('x-powered-by');
 if (CORS_ORIGIN.length > 0) app.use(cors({ origin: CORS_ORIGIN.includes('*') ? true : CORS_ORIGIN }));
-app.use(express.json());
+// Holgado para que entre la importación de un catálogo completo.
+app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);

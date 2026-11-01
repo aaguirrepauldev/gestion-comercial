@@ -72,7 +72,7 @@ Las fechas (ventas, cajas, movimientos) se guardan en la hora del negocio, no en
 ## Funcionalidades
 
 - **Ventas (POS)**: búsqueda de productos, ticket con cantidades editables (decimales para kg), 4 medios de pago, valida stock y requiere caja abierta. Listado de ventas del día con detalle. Anulación (solo admin, y solo si la caja sigue abierta) que repone stock.
-- **Stock**: alta/edición/desactivación de productos (admin), ingresos de mercadería, egresos por merma/vencimiento, ajuste por recuento (admin), alerta de stock mínimo e historial de movimientos (kardex).
+- **Stock**: alta/edición/desactivación de productos (admin), ingresos de mercadería, egresos por merma/vencimiento, ajuste por recuento (admin), alerta de stock mínimo e historial de movimientos (kardex). **Importar CSV** (admin): carga masiva del catálogo con plantilla descargable y vista previa que valida cada fila antes de importar; si el código ya existe actualiza los datos del producto sin tocar su stock.
 - **Caja**: apertura con monto inicial, ingresos/retiros de efectivo, resumen por medio de pago, cierre con efectivo contado y cálculo de diferencia, historial de cierres con detalle.
 - **Usuarios** (admin): alta, edición, roles (`admin` / `vendedor`), módulos habilitados, desactivación y cambio de contraseña.
 - **Inicio**: ventas del día, estado de caja, stock bajo, valor del inventario, últimos 7 días y más vendidos.
@@ -108,6 +108,7 @@ GET|POST /api/users        PUT /api/users/:id                       (admin)
   GET  dashboard
   GET  products?q=&low=1&all=1      POST products      PUT products/:id
   POST products/:id/stock           { type: ingreso|egreso|ajuste, qty, note }
+  POST products/import              { rows: [{ code, name, category, unit, cost, price, stock, min_stock }], dry_run }
   GET  products/movements?product_id=&limit=
   GET  sales?date=YYYY-MM-DD | ?session_id=      GET sales/:id
   POST sales                        { items: [{ product_id, qty }], payment_method }

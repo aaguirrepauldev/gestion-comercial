@@ -38,6 +38,9 @@ code { background: #eef0f3; padding: 1px 5px; border-radius: 4px; }
 .shell { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
 .content { padding: 24px 28px; max-width: 1400px; width: 100%; }
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.table-scroll { max-height: 50vh; overflow: auto; margin-bottom: 12px; }
+.table-scroll thead th { position: sticky; top: 0; background: var(--surface); }
 
 .sidebar {
   background: #16181d; color: #d7dae0; display: flex; flex-direction: column;

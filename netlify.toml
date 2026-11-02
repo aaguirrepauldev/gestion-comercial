@@ -1,0 +1,6 @@
+# Netlify publica solo la landing (landing/index.html), sin compilar nada.
+# La app (frontend y backend) no se despliega acá.
+[build]
+  base = "landing"
+  publish = "."
+  command = ""

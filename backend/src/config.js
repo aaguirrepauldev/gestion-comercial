@@ -78,3 +78,20 @@ export const MIN_PASSWORD_LENGTH = 8;
 export const MODULES = ['libreria', 'avicola'];
 export const ROLES = ['admin', 'vendedor'];
 export const PAYMENT_METHODS = ['efectivo', 'debito', 'credito', 'transferencia'];
+
+// --- Multi-negocio y suscripciones ---
+
+// Días de prueba gratis al registrar un negocio nuevo.
+export const TRIAL_DAYS = Number(process.env.TRIAL_DAYS ?? 14);
+// Días después del vencimiento en que el negocio sigue funcionando normal (con aviso) antes de pasar a solo lectura.
+export const GRACE_DAYS = Number(process.env.GRACE_DAYS ?? 3);
+// Registro público de negocios nuevos desde la web (false para dar de alta solo desde el panel de plataforma).
+export const SIGNUP_ENABLED = (process.env.SIGNUP_ENABLED ?? 'true') !== 'false';
+// Dueño de la plataforma: si SUPERADMIN_PASSWORD está definida y todavía no hay un superadmin, se crea al arrancar.
+export const SUPERADMIN_USERNAME = (process.env.SUPERADMIN_USERNAME ?? 'superadmin').trim().toLowerCase();
+export const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD;
+// Texto que ve el cliente para pagar por transferencia (alias, CBU, titular, monto…). Admite \n para saltos de línea.
+export const TRANSFER_INFO = (process.env.DATOS_TRANSFERENCIA ?? '').replaceAll('\\n', '\n').trim();
+// Precio mensual de referencia que se sugiere al registrar un pago (0 = sin sugerencia).
+export const MONTHLY_PRICE = Number(process.env.PRECIO_MENSUAL ?? 0);
+export const NEGOCIO_ESTADOS = ['prueba', 'activo', 'suspendido'];

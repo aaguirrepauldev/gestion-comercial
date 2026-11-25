@@ -5,6 +5,9 @@ import { api, clearToken, getToken, setToken } from './api';
 
 const AuthContext = createContext(null);
 
+// A dónde va cada usuario al entrar: el superadmin a su panel; el resto, a su primer rubro.
+export const homePath = (user) => (user.superadmin ? '/plataforma' : `/${user.modules[0] ?? ''}`);
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,19 +27,31 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:logout', onLogout);
   }, []);
 
-  const login = useCallback(async (username, password) => {
-    const { token, user } = await api('/auth/login', { method: 'POST', body: { username, password } });
+  const start = useCallback(({ token, user }) => {
     setToken(token);
     setUser(user);
     return user;
   }, []);
+
+  const login = useCallback(
+    async (username, password) => start(await api('/auth/login', { method: 'POST', body: { username, password } })),
+    [start]
+  );
+
+  // Alta de un negocio nuevo: el servidor devuelve la sesión del admin ya iniciada.
+  const register = useCallback(async (data) => start(await api('/auth/registro', { method: 'POST', body: data })), [start]);
+
+  // Vuelve a leer el usuario (y el estado de la suscripción de su negocio).
+  const refresh = useCallback(async () => setUser(await api('/auth/me')), []);
 
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading, login, register, refresh, logout }}>{children}</AuthContext.Provider>
+  );
 }
 
 export const useAuth = () => useContext(AuthContext);

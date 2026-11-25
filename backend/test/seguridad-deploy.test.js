@@ -58,17 +58,20 @@ describe('contraseñas y sesiones', () => {
 });
 
 describe('copia de la base', () => {
-  test('el admin la descarga', async () => {
-    const res = await api.raw('GET', '/backup', { token: admin });
+  // Tiene los datos de todos los negocios: solo la baja el dueño de la plataforma.
+  test('el superadmin la descarga', async () => {
+    const superadmin = await api.login('superadmin', 'superadmin123');
+    const res = await api.raw('GET', '/backup', { token: superadmin });
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-disposition'), /gestion-comercial-.*\.db/);
     const bytes = new Uint8Array(await res.arrayBuffer());
     assert.equal(new TextDecoder().decode(bytes.slice(0, 15)), 'SQLite format 3');
   });
 
-  test('un vendedor no', async () => {
+  test('ni el admin de un negocio ni un vendedor', async () => {
     const vendedor2 = await api.login('libreria', 'libreria123');
     assert.equal((await api.raw('GET', '/backup', { token: vendedor2 })).status, 403);
+    assert.equal((await api.raw('GET', '/backup', { token: admin })).status, 403);
   });
 });
 

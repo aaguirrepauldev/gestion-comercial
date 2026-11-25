@@ -5,8 +5,10 @@ import { HttpError, normalizeQty, parseDecimal, round2, round3, toNumber } from 
 
 const router = Router({ mergeParams: true });
 
-function getProduct(module, id) {
-  const p = db.prepare('SELECT * FROM products WHERE id = ? AND module = ?').get(Number(id), module);
+function getProduct(req, id) {
+  const p = db
+    .prepare('SELECT * FROM products WHERE id = ? AND negocio_id = ? AND module = ?')
+    .get(Number(id), req.negocioId, req.params.module);
   if (!p) throw new HttpError(404, 'Producto no encontrado');
   return p;
 }
@@ -38,8 +40,8 @@ function parseProduct(body) {
 
 router.get('/', (req, res) => {
   const { q, low, all } = req.query;
-  let sql = 'SELECT * FROM products WHERE module = ?';
-  const args = [req.params.module];
+  let sql = 'SELECT * FROM products WHERE negocio_id = ? AND module = ?';
+  const args = [req.negocioId, req.params.module];
   if (!all) sql += ' AND active = 1';
   if (q) {
     sql += ' AND (name LIKE ? OR code LIKE ? OR category LIKE ?)';
@@ -51,7 +53,7 @@ router.get('/', (req, res) => {
 
 router.get('/movements', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 500);
-  const args = [req.params.module];
+  const args = [req.negocioId, req.params.module];
   let filter = '';
   if (req.query.product_id) {
     filter = ' AND m.product_id = ?';
@@ -64,7 +66,7 @@ router.get('/movements', (req, res) => {
          FROM stock_movements m
          JOIN products p ON p.id = m.product_id
          JOIN users u ON u.id = m.user_id
-         WHERE p.module = ?${filter}
+         WHERE p.negocio_id = ? AND p.module = ?${filter}
          ORDER BY m.id DESC LIMIT ${limit}`
       )
       .all(...args)
@@ -80,17 +82,17 @@ router.post('/', requireAdmin, (req, res) => {
     const id = Number(
       db
         .prepare(
-          `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
+          `INSERT INTO products (negocio_id, module, code, name, category, unit, cost, price, stock, min_stock, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
         )
-        .run(module, p.code, p.name, p.category, p.unit, p.cost, p.price, initialStock, p.min_stock).lastInsertRowid
+        .run(req.negocioId, module, p.code, p.name, p.category, p.unit, p.cost, p.price, initialStock, p.min_stock).lastInsertRowid
     );
     if (initialStock > 0) {
       recordStockMovement({ productId: id, type: 'inicial', qty: initialStock, stockAfter: initialStock, userId: req.user.id });
     }
     return id;
   });
-  res.status(201).json(getProduct(module, id));
+  res.status(201).json(getProduct(req, id));
 });
 
 const MAX_IMPORT_ROWS = 5000;
@@ -132,7 +134,7 @@ router.post('/import', requireAdmin, (req, res) => {
 
   const byCode = new Map();
   const byName = new Map();
-  for (const p of db.prepare('SELECT id, code, name, stock FROM products WHERE module = ?').all(module)) {
+  for (const p of db.prepare('SELECT id, code, name, stock FROM products WHERE negocio_id = ? AND module = ?').all(req.negocioId, module)) {
     if (p.code) byCode.set(p.code.toLowerCase(), p);
     const key = p.name.trim().toLowerCase();
     byName.set(key, byName.has(key) ? null : p); // null = nombre repetido, no se puede usar para identificar
@@ -165,8 +167,8 @@ router.post('/import', requireAdmin, (req, res) => {
 
   if (!dryRun) {
     const insert = db.prepare(
-      `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
+      `INSERT INTO products (negocio_id, module, code, name, category, unit, cost, price, stock, min_stock, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
     );
     const update = db.prepare(
       'UPDATE products SET code = ?, name = ?, category = ?, unit = ?, cost = ?, price = ?, min_stock = ? WHERE id = ?'
@@ -176,7 +178,7 @@ router.post('/import', requireAdmin, (req, res) => {
         const p = r.product;
         if (r.action === 'create') {
           r.id = Number(
-            insert.run(module, p.code, p.name, p.category, p.unit, p.cost, p.price, r.stock, p.min_stock).lastInsertRowid
+            insert.run(req.negocioId, module, p.code, p.name, p.category, p.unit, p.cost, p.price, r.stock, p.min_stock).lastInsertRowid
           );
           if (r.stock > 0) {
             recordStockMovement({ productId: r.id, type: 'inicial', qty: r.stock, stockAfter: r.stock, note: 'Importación CSV', userId: req.user.id });
@@ -197,8 +199,7 @@ router.post('/import', requireAdmin, (req, res) => {
 });
 
 router.put('/:id', requireAdmin, (req, res) => {
-  const { module, id } = req.params;
-  const current = getProduct(module, id);
+  const current = getProduct(req, req.params.id);
   const p = parseProduct({ ...current, ...req.body });
   if (p.unit !== current.unit && current.unit === 'kg' && !Number.isInteger(current.stock)) {
     throw new HttpError(400, 'No se puede pasar a "unidad" un producto con stock fraccionado');
@@ -208,14 +209,13 @@ router.put('/:id', requireAdmin, (req, res) => {
     `UPDATE products SET code = ?, name = ?, category = ?, unit = ?, cost = ?, price = ?, min_stock = ?, active = ?
      WHERE id = ?`
   ).run(p.code, p.name, p.category, p.unit, p.cost, p.price, p.min_stock, active, current.id);
-  res.json(getProduct(module, id));
+  res.json(getProduct(req, current.id));
 });
 
 // Ingreso de mercadería, egreso (merma/vencimiento) o ajuste por recuento.
 router.post('/:id/stock', (req, res) => {
-  const { module, id } = req.params;
   const { type, qty, note } = req.body ?? {};
-  const product = getProduct(module, id);
+  const product = getProduct(req, req.params.id);
   if (!product.active) throw new HttpError(400, 'El producto está desactivado');
 
   let delta;
@@ -246,7 +246,7 @@ router.post('/:id/stock', (req, res) => {
       userId: req.user.id,
     });
   });
-  res.json(forRole(req.user, getProduct(module, id)));
+  res.json(forRole(req.user, getProduct(req, product.id)));
 });
 
 export default router;

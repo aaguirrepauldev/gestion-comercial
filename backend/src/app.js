@@ -4,7 +4,7 @@ import express, { Router } from 'express';
 import cors from 'cors';
 import { CORS_ORIGIN, TRUST_PROXY, WEB_DIR } from './config.js';
 import './db.js';
-import { requireAdmin, requireAuth, requireModule } from './auth.js';
+import { requireAdmin, requireAuth, requireModule, requireNegocio, requireSuperadmin, requireWritable } from './auth.js';
 import { HttpError } from './util.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -13,6 +13,8 @@ import salesRoutes from './routes/sales.js';
 import cashRoutes from './routes/cash.js';
 import dashboardRoutes from './routes/dashboard.js';
 import backupRoutes from './routes/backup.js';
+import suscripcionRoutes from './routes/suscripcion.js';
+import plataformaRoutes from './routes/plataforma.js';
 
 // La app Express sin arrancar el servidor, para poder usarla también en los tests.
 const app = express();
@@ -24,12 +26,20 @@ app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
-app.use('/api/users', requireAuth, requireAdmin, userRoutes);
-app.use('/api/backup', requireAuth, requireAdmin, backupRoutes);
+// Cada negocio (cliente) solo ve sus datos: requireAuth deja en req.negocioId el negocio del usuario y
+// todas las consultas filtran por él. Con la suscripción vencida, requireWritable deja solo lectura.
+const tenant = [requireAuth, requireNegocio, requireWritable];
+app.use('/api/users', ...tenant, requireAdmin, userRoutes);
+app.use('/api/suscripcion', requireAuth, requireNegocio, suscripcionRoutes);
 
-// Todo lo que es propio de un negocio cuelga de /api/modules/:module (libreria | avicola)
+// Panel del dueño de la plataforma. La copia completa de la base tiene los datos de todos los negocios,
+// así que solo la descarga el superadmin.
+app.use('/api/plataforma', requireAuth, requireSuperadmin, plataformaRoutes);
+app.use('/api/backup', requireAuth, requireSuperadmin, backupRoutes);
+
+// Todo lo que es propio de un rubro del negocio cuelga de /api/modules/:module (libreria | avicola)
 const moduleRouter = Router({ mergeParams: true });
-moduleRouter.use(requireAuth, requireModule);
+moduleRouter.use(...tenant, requireModule);
 moduleRouter.use('/dashboard', dashboardRoutes);
 moduleRouter.use('/products', productRoutes);
 moduleRouter.use('/sales', salesRoutes);

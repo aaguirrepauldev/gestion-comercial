@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
+import { homePath, useAuth } from '@/lib/auth';
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -10,7 +10,7 @@ export default function Home() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(user ? `/${user.modules[0]}` : '/login');
+    router.replace(user ? homePath(user) : '/login');
   }, [user, loading, router]);
 
   return <div className="center-screen muted">Cargando…</div>;

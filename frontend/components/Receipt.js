@@ -2,12 +2,14 @@
 
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '@/lib/auth';
 import { MODULES, PAYMENT_METHODS, RECEIPT } from '@/lib/constants';
 import { dateTime, money, qty } from '@/lib/format';
 
 // Comprobante de la venta para impresora térmica. Se monta fuera de la app y solo se ve al imprimir;
 // abre el diálogo de impresión apenas se muestra y llama a onDone cuando termina.
 export default function Receipt({ module, sale, onDone }) {
+  const { user } = useAuth();
   useEffect(() => {
     window.addEventListener('afterprint', onDone);
     // Espera a que el comprobante esté pintado antes de imprimir.
@@ -18,7 +20,7 @@ export default function Receipt({ module, sale, onDone }) {
     };
   }, [sale, onDone]);
 
-  const header = RECEIPT[module] ?? { name: MODULES[module].name, lines: [] };
+  const header = { name: user.negocio?.nombre ?? MODULES[module].name, lines: RECEIPT[module]?.lines ?? [] };
 
   return createPortal(
     <div className="receipt" style={{ '--receipt-width': `${RECEIPT.widthMm}mm` }}>

@@ -19,10 +19,18 @@ export const STOCK_MOVEMENT_TYPES = {
   anulacion: 'Anulación',
 };
 
-// Encabezado del comprobante impreso (no válido como factura). Editá nombre y líneas de cada negocio
-// (dirección, teléfono, CUIT…). widthMm es el ancho imprimible: ~72 para papel de 80 mm, ~48 para 58 mm.
+// Comprobante impreso (no válido como factura). El título es el nombre del negocio; `lines` agrega renglones
+// fijos por rubro. widthMm es el ancho imprimible: ~72 para papel de 80 mm, ~48 para 58 mm.
 export const RECEIPT = {
   widthMm: 72,
-  libreria: { name: 'Librería', lines: [] },
-  avicola: { name: 'Avícola', lines: [] },
+  libreria: { lines: [] },
+  avicola: { lines: [] },
+};
+
+export const ESTADOS_NEGOCIO = {
+  prueba: { label: 'Prueba', badge: '' },
+  activo: { label: 'Activo', badge: 'ok' },
+  gracia: { label: 'Vencido (en gracia)', badge: 'warn' },
+  vencido: { label: 'Vencido', badge: 'danger' },
+  suspendido: { label: 'Suspendido', badge: 'danger' },
 };

@@ -39,9 +39,25 @@ ADMIN_PASSWORD=<la contraseña que vas a usar para entrar como admin>
 2. Esperá a que el deploy termine en verde. `https://<tu-dominio>/api/health` tiene que mostrar `{"ok":true}`.
 3. Abrí `https://<tu-dominio>`, entrá con `admin` y la contraseña de `ADMIN_PASSWORD`, y creá desde **Usuarios** a los demás.
 
+## Clientes y suscripciones
+
+Agregá en **Variables**:
+
+```
+SUPERADMIN_PASSWORD=<contraseña para tu usuario de dueño de la plataforma>
+DATOS_TRANSFERENCIA=Alias: tu.alias\nCBU: 0000000000000000000000\nTitular: Tu Nombre
+PRECIO_MENSUAL=15000
+```
+
+- Al arrancar se crea el usuario `superadmin` (o el de `SUPERADMIN_USERNAME`) con esa contraseña. Entrá con él para ver **Plataforma**. Después podés cambiarle la contraseña desde ahí; la variable ya no se vuelve a usar.
+- Si ya tenías datos, la migración los pasa al "Negocio principal", activo y **sin vencimiento**, así que no se corta nada. Antes de migrar guarda una copia `pre-migracion-…db` en `/data/backups`.
+- Los clientes nuevos se registran solos en `https://<tu-dominio>/registro` con 14 días de prueba. Para cerrar el registro público: `SIGNUP_ENABLED=false` (y los das de alta vos desde Plataforma).
+
+Todos los negocios comparten la misma base SQLite del volumen. Alcanza para decenas de negocios chicos en un solo servicio; si crece mucho o querés más de una instancia, el paso siguiente es PostgreSQL (Railway lo ofrece como servicio aparte).
+
 ## Backups
 
-La API guarda una copia diaria en `/data/backups` (conserva las últimas 14), pero está **en el mismo volumen que la base**: si se pierde el volumen, se pierden las dos. Por eso, en **Usuarios** el admin tiene el botón **Descargar copia de la base**, que baja una copia en el momento. Conviene hacerlo al menos una vez por semana y guardarla en otro lado (Drive, un pendrive).
+La API guarda una copia diaria en `/data/backups` (conserva las últimas 14), pero está **en el mismo volumen que la base**: si se pierde el volumen, se pierden las dos. Por eso, en **Plataforma** el superadmin tiene el botón **Descargar copia de la base**, que baja una copia en el momento. Conviene hacerlo al menos una vez por semana y guardarla en otro lado (Drive, un pendrive).
 
 Para restaurar una copia hay que reemplazar `/data/app.db` con el servicio detenido (y borrar `app.db-wal` y `app.db-shm` si existen).
 

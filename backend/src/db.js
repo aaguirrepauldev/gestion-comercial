@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
-import { ADMIN_PASSWORD, BACKUP_DIR, DB_PATH, IS_PRODUCTION, MIN_PASSWORD_LENGTH } from './config.js';
+import {
+  ADMIN_PASSWORD, BACKUP_DIR, DB_PATH, IS_PRODUCTION, MIN_PASSWORD_LENGTH, SUPERADMIN_PASSWORD, SUPERADMIN_USERNAME,
+} from './config.js';
 import { migrations } from './migrations.js';
-import { fileStamp, nowLocal, todayLocal } from './time.js';
+import { addDays, fileStamp, nowLocal, todayLocal } from './time.js';
 
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 export const db = new DatabaseSync(DB_PATH);
@@ -43,10 +45,21 @@ function migrate() {
 
   pending.forEach((migration, i) => {
     const version = current + i + 1;
-    tx(() => {
-      migration.up(db);
-      db.exec(`PRAGMA user_version = ${version}`);
-    });
+    // Para reconstruir tablas SQLite pide apagar las claves foráneas (no se puede dentro de una transacción)
+    // y verificarlas antes de confirmar.
+    if (migration.foreignKeysOff) db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      tx(() => {
+        migration.up(db);
+        if (migration.foreignKeysOff) {
+          const broken = db.prepare('PRAGMA foreign_key_check').all();
+          if (broken.length > 0) throw new Error(`Migración ${version}: claves foráneas rotas ${JSON.stringify(broken.slice(0, 5))}`);
+        }
+        db.exec(`PRAGMA user_version = ${version}`);
+      });
+    } finally {
+      if (migration.foreignKeysOff) db.exec('PRAGMA foreign_keys = ON');
+    }
     console.log(`Migración ${version} aplicada: ${migration.name}`);
   });
 }
@@ -74,21 +87,34 @@ function seedIfEmpty() {
   const { count } = db.prepare('SELECT COUNT(*) AS count FROM users').get();
   if (count > 0) return;
 
-  // En producción solo se crea el admin, con la contraseña de ADMIN_PASSWORD y sin datos de ejemplo.
+  // En producción solo se crea el negocio 1 con su admin (si hay ADMIN_PASSWORD), sin datos de ejemplo.
+  // Con solo SUPERADMIN_PASSWORD arranca vacía y los negocios se registran desde la web.
   if (IS_PRODUCTION) {
+    if (!ADMIN_PASSWORD && SUPERADMIN_PASSWORD) return;
     if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < MIN_PASSWORD_LENGTH) {
-      throw new Error(`Base vacía: definí ADMIN_PASSWORD (mínimo ${MIN_PASSWORD_LENGTH} caracteres) para crear el usuario admin.`);
+      throw new Error(
+        `Base vacía: definí ADMIN_PASSWORD o SUPERADMIN_PASSWORD (mínimo ${MIN_PASSWORD_LENGTH} caracteres).`
+      );
     }
-    db.prepare(
-      "INSERT INTO users (username, password_hash, name, role, modules, created_at) VALUES ('admin', ?, 'Administrador', 'admin', 'libreria,avicola', now_local())"
-    ).run(bcrypt.hashSync(ADMIN_PASSWORD, 10));
+    tx(() => {
+      db.prepare(
+        "INSERT INTO negocios (id, nombre, modules, estado, vence_el, created_at) VALUES (1, 'Negocio principal', 'libreria,avicola', 'activo', NULL, now_local())"
+      ).run();
+      db.prepare(
+        "INSERT INTO users (negocio_id, username, password_hash, name, role, modules, created_at) VALUES (1, 'admin', ?, 'Administrador', 'admin', 'libreria,avicola', now_local())"
+      ).run(bcrypt.hashSync(ADMIN_PASSWORD, 10));
+    });
     console.log('Base de datos inicializada con el usuario admin.');
     return;
   }
 
   tx(() => {
+    // Negocio de ejemplo con suscripción activa por 30 días.
+    db.prepare(
+      "INSERT INTO negocios (id, nombre, modules, estado, vence_el, created_at) VALUES (1, 'Negocio de ejemplo', 'libreria,avicola', 'activo', ?, now_local())"
+    ).run(addDays(todayLocal(), 30));
     const insertUser = db.prepare(
-      'INSERT INTO users (username, password_hash, name, role, modules, created_at) VALUES (?, ?, ?, ?, ?, now_local())'
+      'INSERT INTO users (negocio_id, username, password_hash, name, role, modules, created_at) VALUES (1, ?, ?, ?, ?, ?, now_local())'
     );
     const adminId = Number(
       insertUser.run('admin', bcrypt.hashSync('admin123', 10), 'Administrador', 'admin', 'libreria,avicola')
@@ -96,6 +122,9 @@ function seedIfEmpty() {
     );
     insertUser.run('libreria', bcrypt.hashSync('libreria123', 10), 'Vendedor Librería', 'vendedor', 'libreria');
     insertUser.run('avicola', bcrypt.hashSync('avicola123', 10), 'Vendedor Avícola', 'vendedor', 'avicola');
+    db.prepare(
+      "INSERT INTO users (negocio_id, superadmin, username, password_hash, name, role, created_at) VALUES (NULL, 1, 'superadmin', ?, 'Dueño de la plataforma', 'admin', now_local())"
+    ).run(bcrypt.hashSync('superadmin123', 10));
 
     // [module, code, name, category, unit, cost, price, stock, min_stock]
     const products = [
@@ -121,8 +150,8 @@ function seedIfEmpty() {
       ['avicola', 'AVI-010', 'Alimento balanceado ponedoras 25 kg', 'Alimento animal', 'unidad', 16000, 21500, 9, 3],
     ];
     const insertProduct = db.prepare(
-      `INSERT INTO products (module, code, name, category, unit, cost, price, stock, min_stock, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
+      `INSERT INTO products (negocio_id, module, code, name, category, unit, cost, price, stock, min_stock, created_at)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, now_local())`
     );
     for (const p of products) {
       const id = Number(insertProduct.run(...p).lastInsertRowid);
@@ -132,5 +161,24 @@ function seedIfEmpty() {
   console.log('Base de datos inicializada con datos de ejemplo.');
 }
 
+// El dueño de la plataforma (ve todos los negocios y registra pagos). Se crea al arrancar si está definida
+// SUPERADMIN_PASSWORD y todavía no hay ningún superadmin; después la contraseña se cambia desde el panel.
+function ensureSuperadmin() {
+  if (!SUPERADMIN_PASSWORD) return;
+  if (db.prepare('SELECT 1 FROM users WHERE superadmin = 1').get()) return;
+  if (SUPERADMIN_PASSWORD.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`SUPERADMIN_PASSWORD debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+  }
+  if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(SUPERADMIN_USERNAME)) {
+    console.error(`No se creó el superadmin: ya existe un usuario "${SUPERADMIN_USERNAME}". Definí otro SUPERADMIN_USERNAME.`);
+    return;
+  }
+  db.prepare(
+    "INSERT INTO users (negocio_id, superadmin, username, password_hash, name, role, created_at) VALUES (NULL, 1, ?, ?, 'Dueño de la plataforma', 'admin', now_local())"
+  ).run(SUPERADMIN_USERNAME, bcrypt.hashSync(SUPERADMIN_PASSWORD, 10));
+  console.log(`Usuario superadmin "${SUPERADMIN_USERNAME}" creado.`);
+}
+
 migrate();
 seedIfEmpty();
+ensureSuperadmin();

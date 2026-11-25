@@ -198,3 +198,16 @@ tr.struck td .badge { text-decoration: none; }
   .receipt-item { margin-bottom: 4px; }
   .receipt-total { font-weight: 700; font-size: 14px; }
 }
+
+/* Multi-negocio y suscripciones */
+.center { text-align: center; }
+.login-card > p.center { margin: 0; }
+.login-card.wide { width: min(520px, 94vw); }
+.badge.warn { background: #fef3c7; color: var(--warn); }
+.brand .negocio { display: block; font-size: 12px; font-weight: 500; color: #9aa0aa; margin-top: 2px; }
+.banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 16px; }
+.banner a { font-weight: 600; white-space: nowrap; }
+.transfer { white-space: pre-wrap; font-family: inherit; background: #f7f8fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin: 0; }
+textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.stat .badge { align-self: flex-start; }

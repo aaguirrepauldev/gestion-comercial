@@ -1,34 +1,53 @@
 import { LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MINUTES } from './config.js';
 import { HttpError } from './util.js';
 
-// Cuenta los logins fallidos por IP en memoria: alcanza para un solo servidor y se reinicia con la API.
-const windowMs = LOGIN_WINDOW_MINUTES * 60 * 1000;
-const failures = new Map(); // ip -> { count, resetAt }
+// Cuenta intentos por IP en memoria: alcanza para un solo servidor y se reinicia con la API.
+function createLimiter({ max, windowMinutes, message }) {
+  const windowMs = windowMinutes * 60 * 1000;
+  const hits = new Map(); // ip -> { count, resetAt }
 
-function entryFor(ip) {
-  const entry = failures.get(ip);
-  if (entry && entry.resetAt > Date.now()) return entry;
-  failures.delete(ip);
-  return null;
+  const entryFor = (ip) => {
+    const entry = hits.get(ip);
+    if (entry && entry.resetAt > Date.now()) return entry;
+    hits.delete(ip);
+    return null;
+  };
+
+  // Limpia las entradas vencidas para que el mapa no crezca indefinidamente.
+  setInterval(() => {
+    for (const ip of hits.keys()) entryFor(ip);
+  }, windowMs).unref();
+
+  return {
+    check(ip) {
+      const entry = entryFor(ip);
+      if (entry && entry.count >= max) {
+        const minutes = Math.ceil((entry.resetAt - Date.now()) / 60000);
+        throw new HttpError(429, `${message} Probá de nuevo en ${minutes} min.`);
+      }
+    },
+    record(ip) {
+      const entry = entryFor(ip) ?? { count: 0, resetAt: Date.now() + windowMs };
+      entry.count += 1;
+      hits.set(ip, entry);
+    },
+    clear: (ip) => hits.delete(ip),
+  };
 }
 
-export function checkLoginAllowed(ip) {
-  const entry = entryFor(ip);
-  if (entry && entry.count >= LOGIN_MAX_ATTEMPTS) {
-    const minutes = Math.ceil((entry.resetAt - Date.now()) / 60000);
-    throw new HttpError(429, `Demasiados intentos fallidos. Probá de nuevo en ${minutes} min.`);
-  }
-}
+// Logins fallidos por IP.
+const login = createLimiter({
+  max: LOGIN_MAX_ATTEMPTS,
+  windowMinutes: LOGIN_WINDOW_MINUTES,
+  message: 'Demasiados intentos fallidos.',
+});
+export const checkLoginAllowed = login.check;
+export const recordLoginFailure = login.record;
+export const clearLoginFailures = login.clear;
 
-export function recordLoginFailure(ip) {
-  const entry = entryFor(ip) ?? { count: 0, resetAt: Date.now() + windowMs };
-  entry.count += 1;
-  failures.set(ip, entry);
-}
-
-export const clearLoginFailures = (ip) => failures.delete(ip);
-
-// Limpia las entradas vencidas para que el mapa no crezca indefinidamente.
-setInterval(() => {
-  for (const ip of failures.keys()) entryFor(ip);
-}, windowMs).unref();
+// Registros de negocios nuevos por IP (evita que alguien cree cientos de cuentas de prueba).
+export const signupLimiter = createLimiter({
+  max: Number(process.env.SIGNUP_MAX_PER_HOUR ?? 5),
+  windowMinutes: 60,
+  message: 'Demasiados registros desde esta conexión.',
+});

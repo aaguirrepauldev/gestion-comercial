@@ -13,3 +13,6 @@ export const dateTime = (s) => (s ? toDate(s).toLocaleString('es-AR', { dateStyl
 export const time = (s) => (s ? toDate(s).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '—');
 export const shortDay = (day) =>
   toDate(`${day} 00:00:00`).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+
+// 'YYYY-MM-DD' → '25/11/2026'
+export const day = (s) => (s ? s.slice(0, 10).split('-').reverse().join('/') : '—');

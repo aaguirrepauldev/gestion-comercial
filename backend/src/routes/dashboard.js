@@ -7,22 +7,23 @@ const router = Router({ mergeParams: true });
 
 router.get('/', (req, res) => {
   const { module } = req.params;
+  const neg = req.negocioId;
 
   const today = db
     .prepare(
       `SELECT COUNT(*) AS count, ROUND(COALESCE(SUM(total), 0), 2) AS total FROM sales
-       WHERE module = ? AND status = 'completada' AND date(created_at) = today_local()`
+       WHERE negocio_id = ? AND module = ? AND status = 'completada' AND date(created_at) = today_local()`
     )
-    .get(module);
+    .get(neg, module);
 
   const byDay = new Map(
     db
       .prepare(
         `SELECT date(created_at) AS day, COUNT(*) AS count, ROUND(SUM(total), 2) AS total FROM sales
-         WHERE module = ? AND status = 'completada' AND date(created_at) >= date(today_local(), '-6 days')
+         WHERE negocio_id = ? AND module = ? AND status = 'completada' AND date(created_at) >= date(today_local(), '-6 days')
          GROUP BY day`
       )
-      .all(module)
+      .all(neg, module)
       .map((r) => [r.day, r])
   );
   const todayDay = todayLocal();
@@ -35,29 +36,29 @@ router.get('/', (req, res) => {
     .prepare(
       `SELECT i.product_name AS name, i.unit, ROUND(SUM(i.qty), 3) AS qty, ROUND(SUM(i.subtotal), 2) AS total
        FROM sale_items i JOIN sales s ON s.id = i.sale_id
-       WHERE s.module = ? AND s.status = 'completada' AND date(s.created_at) = today_local()
+       WHERE s.negocio_id = ? AND s.module = ? AND s.status = 'completada' AND date(s.created_at) = today_local()
        GROUP BY i.product_id ORDER BY total DESC LIMIT 5`
     )
-    .all(module);
+    .all(neg, module);
 
   const lowStock = db
     .prepare(
       `SELECT id, name, unit, stock, min_stock FROM products
-       WHERE module = ? AND active = 1 AND stock <= min_stock ORDER BY stock / NULLIF(min_stock, 0)`
+       WHERE negocio_id = ? AND module = ? AND active = 1 AND stock <= min_stock ORDER BY stock / NULLIF(min_stock, 0)`
     )
-    .all(module);
+    .all(neg, module);
 
   const inventory = db
     .prepare(
       `SELECT COUNT(*) AS products, ROUND(COALESCE(SUM(stock * cost), 0), 2) AS cost_value,
          ROUND(COALESCE(SUM(stock * price), 0), 2) AS retail_value
-       FROM products WHERE module = ? AND active = 1`
+       FROM products WHERE negocio_id = ? AND module = ? AND active = 1`
     )
-    .get(module);
+    .get(neg, module);
 
   if (req.user.role !== 'admin') delete inventory.cost_value;
 
-  const open = getOpenSession(module);
+  const open = getOpenSession(neg, module);
   res.json({
     today,
     last7Days,

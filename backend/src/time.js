@@ -29,3 +29,17 @@ export function addDays(day, n) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+
+// Días entre dos fechas 'YYYY-MM-DD' (b - a).
+export function daysBetween(a, b) {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+}
+
+// Suma meses a 'YYYY-MM-DD'; si el día no existe en el mes destino queda el último (31/01 + 1 mes = 28/02).
+export function addMonths(day, n) {
+  const [y, m, d] = day.split('-').map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + n, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().slice(0, 10);
+}

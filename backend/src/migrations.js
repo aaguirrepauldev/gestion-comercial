@@ -109,4 +109,90 @@ export const migrations = [
     name: 'usuarios: versión de sesión',
     up: (db) => db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0'),
   },
+  {
+    // Varios negocios (clientes) en la misma base: cada usuario, producto, caja y venta pertenece a uno.
+    // Los datos que ya existían pasan al negocio 1, activo y sin vencimiento.
+    // Corre con las claves foráneas apagadas porque hay que reconstruir la tabla de productos
+    // (el código pasa a ser único por negocio) y agregar columnas con REFERENCES.
+    name: 'negocios y suscripciones',
+    foreignKeysOff: true,
+    up: (db) => {
+      db.exec(`
+      CREATE TABLE negocios (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre     TEXT NOT NULL,
+        modules    TEXT NOT NULL DEFAULT 'libreria,avicola',
+        plan       TEXT NOT NULL DEFAULT 'mensual',
+        estado     TEXT NOT NULL DEFAULT 'prueba' CHECK (estado IN ('prueba','activo','suspendido')),
+        vence_el   TEXT,            -- 'YYYY-MM-DD' inclusive; NULL = sin vencimiento
+        contacto   TEXT,            -- teléfono o email del dueño, para cobrar
+        notas      TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      -- Pagos recibidos. Hoy se cargan a mano (transferencia); más adelante un webhook de
+      -- Mercado Pago puede insertar acá con metodo = 'mercadopago' y external_id = id del pago.
+      CREATE TABLE pagos (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        negocio_id    INTEGER NOT NULL REFERENCES negocios(id),
+        monto         REAL NOT NULL,
+        metodo        TEXT NOT NULL DEFAULT 'transferencia',
+        referencia    TEXT,
+        external_id   TEXT UNIQUE,
+        fecha         TEXT NOT NULL,  -- día en que se recibió el pago
+        desde         TEXT,           -- vencimiento anterior
+        hasta         TEXT NOT NULL,  -- nuevo vencimiento
+        registrado_por INTEGER REFERENCES users(id),
+        created_at    TEXT NOT NULL
+      );
+      CREATE INDEX ix_pagos_negocio ON pagos(negocio_id, id);
+
+      -- negocio_id NULL solo para el superadmin de la plataforma (ver trigger).
+      ALTER TABLE users ADD COLUMN negocio_id INTEGER REFERENCES negocios(id);
+      ALTER TABLE users ADD COLUMN superadmin INTEGER NOT NULL DEFAULT 0;
+      CREATE TRIGGER users_negocio_obligatorio BEFORE INSERT ON users
+        WHEN NEW.negocio_id IS NULL AND NEW.superadmin = 0
+        BEGIN SELECT RAISE(ABORT, 'users.negocio_id es obligatorio'); END;
+
+      -- DEFAULT 0 no existe en negocios: un INSERT que se olvide del negocio falla por clave foránea.
+      ALTER TABLE cash_sessions ADD COLUMN negocio_id INTEGER NOT NULL DEFAULT 0 REFERENCES negocios(id);
+      ALTER TABLE sales ADD COLUMN negocio_id INTEGER NOT NULL DEFAULT 0 REFERENCES negocios(id);
+
+      CREATE TABLE products_new (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        negocio_id INTEGER NOT NULL REFERENCES negocios(id),
+        module     TEXT NOT NULL CHECK (module IN ('libreria','avicola')),
+        code       TEXT,
+        name       TEXT NOT NULL,
+        category   TEXT,
+        unit       TEXT NOT NULL DEFAULT 'unidad' CHECK (unit IN ('unidad','kg')),
+        cost       REAL NOT NULL DEFAULT 0,
+        price      REAL NOT NULL,
+        stock      REAL NOT NULL DEFAULT 0,
+        min_stock  REAL NOT NULL DEFAULT 0,
+        active     INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        UNIQUE (negocio_id, module, code)
+      );
+      INSERT INTO products_new (id, negocio_id, module, code, name, category, unit, cost, price, stock, min_stock, active, created_at)
+        SELECT id, 1, module, code, name, category, unit, cost, price, stock, min_stock, active, created_at FROM products;
+      DROP TABLE products;
+      ALTER TABLE products_new RENAME TO products;
+
+      DROP INDEX IF EXISTS ux_cash_open;
+      CREATE UNIQUE INDEX ux_cash_open ON cash_sessions(negocio_id, module) WHERE status = 'abierta';
+      DROP INDEX IF EXISTS ix_sales_module_date;
+      CREATE INDEX ix_sales_negocio_date ON sales(negocio_id, module, created_at);
+      CREATE INDEX ix_users_negocio ON users(negocio_id);
+      `);
+
+      const hasData = db.prepare('SELECT COUNT(*) AS n FROM users').get().n > 0;
+      if (hasData) {
+        db.prepare(
+          "INSERT INTO negocios (id, nombre, modules, estado, vence_el, created_at) VALUES (1, 'Negocio principal', 'libreria,avicola', 'activo', NULL, now_local())"
+        ).run();
+        db.exec('UPDATE users SET negocio_id = 1; UPDATE cash_sessions SET negocio_id = 1; UPDATE sales SET negocio_id = 1;');
+      }
+    },
+  },
 ];

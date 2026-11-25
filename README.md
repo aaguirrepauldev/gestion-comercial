@@ -1,11 +1,25 @@
 # Gestión Comercial — POC
 
-Control de stock, ventas, cierre de caja y usuarios para dos negocios en una misma aplicación:
+Control de stock, ventas, cierre de caja y usuarios, para **varios negocios (clientes) en una misma instalación**, con suscripción mensual. Cada negocio elige sus rubros:
 
 - **📚 Librería**: productos por unidad.
 - **🐔 Avícola**: pollo, cortes y elaborados por **kg** (hasta 3 decimales), y huevos, alimento balanceado, etc. por unidad.
 
-Cada negocio es un **módulo separado**: tiene su propio stock, sus ventas y su caja. Los usuarios pueden tener acceso a uno o a ambos.
+Cada rubro es un **módulo separado** dentro del negocio: tiene su propio stock, sus ventas y su caja. Los usuarios pueden tener acceso a uno o a ambos.
+
+## Clientes y suscripciones
+
+Todos los negocios comparten la misma API y la misma base, pero cada uno ve solo sus datos:
+
+- La tabla `negocios` guarda nombre, rubros, estado (`prueba`, `activo`, `suspendido`) y fecha de vencimiento. Usuarios, productos, cajas y ventas tienen `negocio_id`.
+- En cada pedido, `requireAuth` relee el usuario y su negocio de la base y deja `req.negocioId`; todas las consultas filtran por ese id. Un producto, venta o usuario de otro negocio responde 404.
+- **Alta**: desde la web (`/registro`) cualquiera crea su negocio con `TRIAL_DAYS` días de prueba (14 por defecto). También se puede dar de alta a mano desde el panel de plataforma.
+- **Vencimiento**: hasta `GRACE_DAYS` días después de vencer (3 por defecto) todo sigue funcionando con un aviso. Después el negocio queda en **solo lectura**: puede ver sus datos pero cualquier cambio responde `402`. Un negocio **suspendido** no puede entrar. "Vencido" no se guarda: se calcula con la fecha, así no hace falta ninguna tarea programada.
+- **Pago por transferencia**: el cliente ve en **Mi suscripción** los datos de `DATOS_TRANSFERENCIA`. Cuando llega la transferencia, el superadmin la registra en **Plataforma → negocio → Registrar pago**: queda en la tabla `pagos` y el vencimiento se extiende N meses desde el vencimiento actual (o desde hoy si ya había vencido).
+- **Superadmin**: un usuario sin negocio que solo ve el panel **Plataforma** (todos los negocios, estado, último pago, última venta, alta manual, suspender, corregir vencimiento) y es el único que descarga la copia completa de la base. Se crea al arrancar si está definida `SUPERADMIN_PASSWORD`.
+- Los nombres de usuario son únicos en toda la plataforma (el login no pide el negocio).
+
+Mercado Pago queda para más adelante: la tabla `pagos` ya tiene `metodo` y `external_id`, y `registrarPago()` en `routes/plataforma.js` es la función que llamaría un webhook.
 
 ## Stack
 
@@ -37,7 +51,9 @@ Para subirlo a Railway seguí la guía [docs/deploy.md](docs/deploy.md).
 En producción corre **un solo servicio**: `npm run build` compila la web como sitio estático (`frontend/out`) y `npm start` levanta la API, que también sirve la web en la misma dirección. Para otro servidor, copiá `backend/.env.example` como `backend/.env` y completalo; `npm start` lo lee solo. Con `NODE_ENV=production` la API no arranca si falta alguna de estas variables:
 
 - `JWT_SECRET`: clave de al menos 32 caracteres para firmar las sesiones.
-- `ADMIN_PASSWORD`: solo la primera vez, con la base vacía. En producción se crea únicamente el usuario `admin`, sin los usuarios ni productos de ejemplo.
+- `ADMIN_PASSWORD` o `SUPERADMIN_PASSWORD`: solo la primera vez, con la base vacía. Con `ADMIN_PASSWORD` se crea el negocio 1 con su usuario `admin` (sin vencimiento); con solo `SUPERADMIN_PASSWORD` la base arranca sin negocios y se registran desde la web.
+
+Variables de suscripciones (opcionales): `SUPERADMIN_USERNAME` (por defecto `superadmin`), `SUPERADMIN_PASSWORD`, `DATOS_TRANSFERENCIA` (alias/CBU que ve el cliente; `\n` para saltos de línea), `PRECIO_MENSUAL`, `TRIAL_DAYS` (14), `GRACE_DAYS` (3), `SIGNUP_ENABLED` (`false` para cerrar el registro público) y `SIGNUP_MAX_PER_HOUR` (5 registros por IP).
 
 `CORS_ORIGIN` solo hace falta si la web corre en otra dirección que la API. En Railway, además, la API no arranca sin `NODE_ENV=production` ni sin un volumen para la base.
 
@@ -47,7 +63,7 @@ El login se bloquea por 15 minutos después de 10 intentos fallidos desde la mis
 
 ### Backups
 
-La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la última tiene más de un día) y después una vez por día, y conserva las últimas 14. Para hacer una copia en el momento: `npm run backup --prefix backend`, o desde la web, en **Usuarios → Descargar copia de la base** (solo admin).
+La API guarda una copia de la base en `backend/data/backups/` al arrancar (si la última tiene más de un día) y después una vez por día, y conserva las últimas 14. Para hacer una copia en el momento: `npm run backup --prefix backend`, o desde la web, en **Plataforma → Descargar copia de la base** (solo superadmin, porque tiene los datos de todos los negocios).
 
 Se configura con variables de entorno: `BACKUP_DIR` (carpeta), `BACKUP_INTERVAL_HOURS` (cada cuántas horas; `0` los desactiva) y `BACKUP_KEEP` (cuántas conservar). Para restaurar, frená la API y reemplazá `backend/data/app.db` por la copia elegida (borrando `app.db-wal` y `app.db-shm`).
 
@@ -63,18 +79,23 @@ Las fechas (ventas, cajas, movimientos) se guardan en la hora del negocio, no en
 
 ### Usuarios de prueba
 
-| Usuario    | Contraseña    | Rol      | Módulos          |
-|------------|---------------|----------|------------------|
-| `admin`    | `admin123`    | admin    | Librería + Avícola |
-| `libreria` | `libreria123` | vendedor | Librería         |
-| `avicola`  | `avicola123`  | vendedor | Avícola          |
+| Usuario      | Contraseña      | Rol        | Módulos            |
+|--------------|-----------------|------------|--------------------|
+| `admin`      | `admin123`      | admin      | Librería + Avícola |
+| `libreria`   | `libreria123`   | vendedor   | Librería           |
+| `avicola`    | `avicola123`    | vendedor   | Avícola            |
+| `superadmin` | `superadmin123` | superadmin | Panel Plataforma   |
+
+Los tres primeros son del "Negocio de ejemplo", activo por 30 días.
 
 ## Funcionalidades
 
 - **Ventas (POS)**: búsqueda de productos, ticket con cantidades editables (decimales para kg), 4 medios de pago, valida stock y requiere caja abierta. Listado de ventas del día con detalle. Anulación (solo admin, y solo si la caja sigue abierta) que repone stock.
 - **Stock**: alta/edición/desactivación de productos (admin), ingresos de mercadería, egresos por merma/vencimiento, ajuste por recuento (admin), alerta de stock mínimo e historial de movimientos (kardex). **Importar CSV** (admin): carga masiva del catálogo con plantilla descargable y vista previa que valida cada fila antes de importar; si el código ya existe actualiza los datos del producto sin tocar su stock.
 - **Caja**: apertura con monto inicial, ingresos/retiros de efectivo, resumen por medio de pago, cierre con efectivo contado y cálculo de diferencia, historial de cierres con detalle.
-- **Usuarios** (admin): alta, edición, roles (`admin` / `vendedor`), módulos habilitados, desactivación y cambio de contraseña.
+- **Usuarios** (admin): alta, edición, roles (`admin` / `vendedor`), módulos habilitados, desactivación y cambio de contraseña. Solo los del propio negocio.
+- **Mi suscripción** (admin): estado, vencimiento, datos para transferir y pagos registrados.
+- **Plataforma** (superadmin): negocios, alta manual, registrar pagos, suspender/reactivar, copia de la base.
 - **Inicio**: ventas del día, estado de caja, stock bajo, valor del inventario, últimos 7 días y más vendidos.
 
 ## Estructura
@@ -101,8 +122,17 @@ Todas las rutas (salvo login) requieren `Authorization: Bearer <token>`.
 
 ```
 POST /api/auth/login                     { username, password } → { token, user }
-GET  /api/auth/me
-GET|POST /api/users        PUT /api/users/:id                       (admin)
+GET  /api/auth/me                        (user.negocio trae estado, vence_el, dias_restantes, solo_lectura)
+GET  /api/auth/registro                  → { habilitado, dias_prueba }
+POST /api/auth/registro                  { negocio, modules, contacto, name, username, password } → { token, user }
+GET|POST /api/users        PUT /api/users/:id                       (admin, de su negocio)
+GET  /api/suscripcion                                               (estado, datos de transferencia, pagos)
+
+/api/plataforma/...                                                 (superadmin)
+  GET|POST negocios   GET|PUT negocios/:id
+  POST negocios/:id/pagos           { monto, meses | hasta, fecha, referencia }
+  PUT  password                     { password }
+GET  /api/backup                                                    (superadmin)
 
 /api/modules/:module/...    (:module = libreria | avicola)
   GET  dashboard
@@ -120,9 +150,13 @@ GET|POST /api/users        PUT /api/users/:id                       (admin)
 
 Como el backend es una API REST independiente con JWT, la futura **app móvil** (p. ej. React Native/Expo) puede consumir exactamente los mismos endpoints.
 
+Con la suscripción vencida, cualquier pedido que no sea `GET` a `/api/users` o `/api/modules/...` responde `402`.
+
 ## Próximos pasos sugeridos (fuera del POC)
 
-- Migrar a PostgreSQL (con Prisma o Drizzle) y TypeScript en ambos lados.
+- Cobro automático con Mercado Pago (suscripciones o link de pago + webhook que llame a `registrarPago`).
+- Exportar los datos de un negocio (hoy la copia completa de la base es solo para el superadmin).
+- Migrar a PostgreSQL (con Prisma o Drizzle) y TypeScript en ambos lados, cuando haya muchos negocios o más de un servidor.
 - Lector de código de barras y balanza para productos por kg.
 - Proveedores, compras y costo promedio; listas de precios y descuentos.
 - Facturación electrónica (AFIP/ARCA) e impresión de tickets.

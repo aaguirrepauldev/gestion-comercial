@@ -4,8 +4,10 @@ import { HttpError, round2, toNumber } from '../util.js';
 
 const router = Router({ mergeParams: true });
 
-export function getOpenSession(module) {
-  return db.prepare("SELECT * FROM cash_sessions WHERE module = ? AND status = 'abierta'").get(module);
+export function getOpenSession(negocioId, module) {
+  return db
+    .prepare("SELECT * FROM cash_sessions WHERE negocio_id = ? AND module = ? AND status = 'abierta'")
+    .get(negocioId, module);
 }
 
 // Resumen de una caja: ventas por medio de pago, movimientos manuales y efectivo esperado.
@@ -61,7 +63,7 @@ export function sessionSummary(id) {
 }
 
 router.get('/current', (req, res) => {
-  const session = getOpenSession(req.params.module);
+  const session = getOpenSession(req.negocioId, req.params.module);
   res.json(session ? sessionSummary(session.id) : null);
 });
 
@@ -75,33 +77,35 @@ router.get('/history', (req, res) => {
          FROM cash_sessions cs
          JOIN users uo ON uo.id = cs.opened_by
          LEFT JOIN users uc ON uc.id = cs.closed_by
-         WHERE cs.module = ? AND cs.status = 'cerrada'
+         WHERE cs.negocio_id = ? AND cs.module = ? AND cs.status = 'cerrada'
          ORDER BY cs.id DESC LIMIT 100`
       )
-      .all(req.params.module)
+      .all(req.negocioId, req.params.module)
   );
 });
 
 router.get('/:id', (req, res) => {
   const summary = sessionSummary(Number(req.params.id));
-  if (!summary || summary.module !== req.params.module) throw new HttpError(404, 'Caja no encontrada');
+  if (!summary || summary.negocio_id !== req.negocioId || summary.module !== req.params.module) throw new HttpError(404, 'Caja no encontrada');
   res.json(summary);
 });
 
 router.post('/open', (req, res) => {
   const { module } = req.params;
-  if (getOpenSession(module)) throw new HttpError(409, 'Ya hay una caja abierta para este módulo');
+  if (getOpenSession(req.negocioId, module)) throw new HttpError(409, 'Ya hay una caja abierta para este módulo');
   const amount = round2(toNumber(req.body?.opening_amount ?? 0, 'Monto inicial'));
   if (amount < 0) throw new HttpError(400, 'El monto inicial no puede ser negativo');
 
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO cash_sessions (module, opened_by, opening_amount, opened_at) VALUES (?, ?, ?, now_local())')
-    .run(module, req.user.id, amount);
+    .prepare(
+      'INSERT INTO cash_sessions (negocio_id, module, opened_by, opening_amount, opened_at) VALUES (?, ?, ?, ?, now_local())'
+    )
+    .run(req.negocioId, module, req.user.id, amount);
   res.status(201).json(sessionSummary(Number(lastInsertRowid)));
 });
 
 router.post('/movements', (req, res) => {
-  const session = getOpenSession(req.params.module);
+  const session = getOpenSession(req.negocioId, req.params.module);
   if (!session) throw new HttpError(409, 'La caja está cerrada');
   const { type, description } = req.body ?? {};
   if (!['ingreso', 'egreso'].includes(type)) throw new HttpError(400, 'Tipo inválido');
@@ -120,7 +124,7 @@ router.post('/movements', (req, res) => {
 });
 
 router.post('/close', (req, res) => {
-  const session = getOpenSession(req.params.module);
+  const session = getOpenSession(req.negocioId, req.params.module);
   if (!session) throw new HttpError(409, 'No hay una caja abierta');
   const counted = round2(toNumber(req.body?.counted_cash, 'Efectivo contado'));
   if (counted < 0) throw new HttpError(400, 'El efectivo contado no puede ser negativo');

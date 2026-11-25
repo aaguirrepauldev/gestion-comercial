@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { api, download, setToken } from '@/lib/api';
+import { api, setToken } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { MODULES } from '@/lib/constants';
 import { useLoad } from '@/lib/useLoad';
@@ -13,17 +13,6 @@ export default function UsuariosPage() {
   const { user } = useAuth();
   const users = useLoad(() => api('/users'), []);
   const [editing, setEditing] = useState(null);
-  const [backup, setBackup] = useState({ busy: false, error: '' });
-
-  async function downloadBackup() {
-    setBackup({ busy: true, error: '' });
-    try {
-      await download('/backup');
-      setBackup({ busy: false, error: '' });
-    } catch (err) {
-      setBackup({ busy: false, error: err.message });
-    }
-  }
 
   if (user.role !== 'admin') return <div className="alert error">Requiere rol administrador.</div>;
 
@@ -32,15 +21,11 @@ export default function UsuariosPage() {
       <header className="page-header">
         <h1>Usuarios</h1>
         <div className="form-actions">
-          <button className="btn outline" onClick={downloadBackup} disabled={backup.busy}>
-            {backup.busy ? 'Preparando copia…' : 'Descargar copia de la base'}
-          </button>
           <button className="btn primary" onClick={() => setEditing(EMPTY_USER)}>
             + Nuevo usuario
           </button>
         </div>
       </header>
-      {backup.error && <div className="alert error">{backup.error}</div>}
 
       <section className="card">
         {users.error && <div className="alert error">{users.error.message}</div>}
@@ -85,6 +70,7 @@ export default function UsuariosPage() {
 }
 
 function UserForm({ initial, onClose, onSaved }) {
+  const { user } = useAuth();
   const isNew = !initial.id;
   const [form, setForm] = useState({ ...initial, password: '' });
   const [error, setError] = useState('');
@@ -119,6 +105,7 @@ function UserForm({ initial, onClose, onSaved }) {
             required
             autoFocus={isNew}
           />
+          {isNew && <span className="small muted">Tiene que ser único en todo el sistema (ej.: juan.{user.negocio.nombre.split(' ')[0].toLowerCase()}).</span>}
         </label>
         <label>
           Nombre
@@ -146,7 +133,7 @@ function UserForm({ initial, onClose, onSaved }) {
           {form.role === 'admin' ? (
             <p className="muted small">Los administradores acceden a todos los módulos.</p>
           ) : (
-            Object.values(MODULES).map((m) => (
+            user.negocio.modules.map((id) => MODULES[id]).map((m) => (
               <label key={m.id} className="check">
                 <input type="checkbox" checked={form.modules.includes(m.id)} onChange={() => toggleModule(m.id)} />{' '}
                 {m.icon} {m.name}

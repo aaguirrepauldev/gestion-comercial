@@ -7,15 +7,15 @@ import { getOpenSession } from './cash.js';
 
 const router = Router({ mergeParams: true });
 
-function getSale(module, id) {
+function getSale(req, id) {
   const sale = db
     .prepare(
       `SELECT s.*, u.name AS user_name, uc.name AS cancelled_by_name
        FROM sales s JOIN users u ON u.id = s.user_id
        LEFT JOIN users uc ON uc.id = s.cancelled_by
-       WHERE s.id = ? AND s.module = ?`
+       WHERE s.id = ? AND s.negocio_id = ? AND s.module = ?`
     )
-    .get(Number(id), module);
+    .get(Number(id), req.negocioId, req.params.module);
   if (!sale) throw new HttpError(404, 'Venta no encontrada');
   sale.items = db.prepare('SELECT * FROM sale_items WHERE sale_id = ? ORDER BY id').all(sale.id);
   return sale;
@@ -23,7 +23,7 @@ function getSale(module, id) {
 
 // Lista de ventas por caja (?session_id=) o por día (?date=YYYY-MM-DD, por defecto hoy).
 router.get('/', (req, res) => {
-  const args = [req.params.module];
+  const args = [req.negocioId, req.params.module];
   let filter;
   if (req.query.session_id) {
     filter = 's.session_id = ?';
@@ -40,21 +40,21 @@ router.get('/', (req, res) => {
         `SELECT s.*, u.name AS user_name,
            (SELECT COUNT(*) FROM sale_items i WHERE i.sale_id = s.id) AS items_count
          FROM sales s JOIN users u ON u.id = s.user_id
-         WHERE s.module = ? AND ${filter}
+         WHERE s.negocio_id = ? AND s.module = ? AND ${filter}
          ORDER BY s.id DESC`
       )
       .all(...args)
   );
 });
 
-router.get('/:id', (req, res) => res.json(getSale(req.params.module, req.params.id)));
+router.get('/:id', (req, res) => res.json(getSale(req, req.params.id)));
 
 router.post('/', (req, res) => {
   const { module } = req.params;
   const { items, payment_method } = req.body ?? {};
   if (!Array.isArray(items) || items.length === 0) throw new HttpError(400, 'La venta no tiene productos');
   if (!PAYMENT_METHODS.includes(payment_method)) throw new HttpError(400, 'Medio de pago inválido');
-  const session = getOpenSession(module);
+  const session = getOpenSession(req.negocioId, module);
   if (!session) throw new HttpError(409, 'La caja está cerrada. Abrí la caja antes de vender.');
 
   const saleId = tx(() => {
@@ -67,7 +67,9 @@ router.post('/', (req, res) => {
 
     const lines = [];
     for (const [pid, qtys] of requested) {
-      const product = db.prepare('SELECT * FROM products WHERE id = ? AND module = ? AND active = 1').get(pid, module);
+      const product = db
+        .prepare('SELECT * FROM products WHERE id = ? AND negocio_id = ? AND module = ? AND active = 1')
+        .get(pid, req.negocioId, module);
       if (!product) throw new HttpError(404, `Producto ${pid} no encontrado`);
       const qty = round3(qtys.reduce((acc, q) => acc + normalizeQty(product.unit, q), 0));
       if (qty > product.stock + 1e-9) {
@@ -79,8 +81,10 @@ router.post('/', (req, res) => {
 
     const id = Number(
       db
-        .prepare('INSERT INTO sales (module, session_id, user_id, total, payment_method, created_at) VALUES (?, ?, ?, ?, ?, now_local())')
-        .run(module, session.id, req.user.id, total, payment_method).lastInsertRowid
+        .prepare(
+          'INSERT INTO sales (negocio_id, module, session_id, user_id, total, payment_method, created_at) VALUES (?, ?, ?, ?, ?, ?, now_local())'
+        )
+        .run(req.negocioId, module, session.id, req.user.id, total, payment_method).lastInsertRowid
     );
     const insertItem = db.prepare(
       `INSERT INTO sale_items (sale_id, product_id, product_name, unit, qty, unit_price, subtotal)
@@ -94,12 +98,11 @@ router.post('/', (req, res) => {
     }
     return id;
   });
-  res.status(201).json(getSale(module, saleId));
+  res.status(201).json(getSale(req, saleId));
 });
 
 router.post('/:id/cancel', requireAdmin, (req, res) => {
-  const { module, id } = req.params;
-  const sale = getSale(module, id);
+  const sale = getSale(req, req.params.id);
   if (sale.status === 'anulada') throw new HttpError(409, 'La venta ya está anulada');
   const session = db.prepare('SELECT status FROM cash_sessions WHERE id = ?').get(sale.session_id);
   if (session.status !== 'abierta') throw new HttpError(409, 'No se puede anular una venta de una caja ya cerrada');
@@ -118,7 +121,7 @@ router.post('/:id/cancel', requireAdmin, (req, res) => {
       "UPDATE sales SET status = 'anulada', cancelled_by = ?, cancelled_at = now_local() WHERE id = ?"
     ).run(req.user.id, sale.id);
   });
-  res.json(getSale(module, id));
+  res.json(getSale(req, sale.id));
 });
 
 export default router;

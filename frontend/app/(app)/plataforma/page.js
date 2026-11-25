@@ -177,12 +177,28 @@ function EstadoBadge({ estado }) {
 function NegocioDetail({ id, onClose, onChanged }) {
   const detail = useLoad(() => api(`/plataforma/negocios/${id}`), [id]);
   const [tab, setTab] = useState('pago');
+  const [suspendError, setSuspendError] = useState('');
   const n = detail.data;
 
   const changed = () => {
     detail.reload();
     onChanged();
   };
+
+  // Suspender: nadie del negocio puede entrar (los datos quedan). Reactivar lo vuelve a activo,
+  // o a prueba si todavía no pagó nunca.
+  async function toggleSuspend() {
+    const suspended = n.estado === 'suspendido';
+    if (!suspended && !window.confirm(`¿Suspender "${n.nombre}"? Nadie del negocio va a poder entrar hasta que lo reactives.`)) return;
+    setSuspendError('');
+    try {
+      const estado = suspended ? (n.pagos.length > 0 ? 'activo' : 'prueba') : 'suspendido';
+      await api(`/plataforma/negocios/${n.id}`, { method: 'PUT', body: { estado } });
+      changed();
+    } catch (err) {
+      setSuspendError(err.message);
+    }
+  }
 
   return (
     <Modal title={n ? n.nombre : 'Negocio'} onClose={onClose} wide>
@@ -211,6 +227,21 @@ function NegocioDetail({ id, onClose, onChanged }) {
               <strong style={{ fontSize: 16 }}>{day(n.created_at)}</strong>
             </div>
           </div>
+
+          <div className="alert-row mt">
+            <span className="small muted">
+              {n.estado === 'suspendido'
+                ? 'Cuenta suspendida: nadie del negocio puede entrar.'
+                : 'Suspender corta el acceso a todo el negocio sin borrar sus datos.'}
+            </span>
+            <button
+              className={`btn small ${n.estado === 'suspendido' ? 'primary' : 'danger'}`}
+              onClick={toggleSuspend}
+            >
+              {n.estado === 'suspendido' ? 'Reactivar cuenta' : 'Suspender cuenta'}
+            </button>
+          </div>
+          {suspendError && <div className="alert error">{suspendError}</div>}
 
           <div className="filters mt">
             {[

@@ -85,7 +85,13 @@ export default function VentasPage() {
     });
   }
 
-  const updateQty = (id, value) => setCart((c) => c.map((l) => (l.product.id === id ? { ...l, qty: value } : l)));
+  // Los productos por unidad solo aceptan enteros: se descarta todo lo que no sea un dígito.
+  const updateQty = (id, value) =>
+    setCart((c) =>
+      c.map((l) =>
+        l.product.id === id ? { ...l, qty: l.product.unit === 'kg' ? value : value.replace(/\D/g, '') } : l
+      )
+    );
   const removeLine = (id) => setCart((c) => c.filter((l) => l.product.id !== id));
 
   async function checkout() {
@@ -188,7 +194,7 @@ export default function VentasPage() {
                         className="qty-input"
                         ref={(el) => (el ? qtyInputs.current.set(l.product.id, el) : qtyInputs.current.delete(l.product.id))}
                         placeholder={l.product.unit === 'kg' ? 'Gramos' : ''}
-                        inputMode="decimal"
+                        inputMode={l.product.unit === 'kg' ? 'decimal' : 'numeric'}
                         value={l.qty}
                         onChange={(e) => updateQty(l.product.id, e.target.value)}
                       />

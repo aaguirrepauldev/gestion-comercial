@@ -7,6 +7,7 @@ import { PAYMENT_METHODS } from '@/lib/constants';
 import { dateTime, money } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import { useDialog } from '@/components/ConfirmDialog';
 import SalesTable from '@/components/SalesTable';
 
 export default function CajaPage() {
@@ -179,6 +180,7 @@ function MovementsTable({ movements }) {
 }
 
 function OpenSession({ module, session, onChange }) {
+  const dialog = useDialog();
   const [mov, setMov] = useState({ type: 'egreso', amount: '', description: '' });
   const [close, setClose] = useState({ counted_cash: '', notes: '' });
   const [error, setError] = useState('');
@@ -203,9 +205,14 @@ function OpenSession({ module, session, onChange }) {
     });
   };
 
-  const closeSession = (e) => {
+  const closeSession = async (e) => {
     e.preventDefault();
-    if (!confirm(`¿Cerrar la caja con ${money(counted)} contados? Diferencia: ${money(diff)}`)) return;
+    const ok = await dialog.confirm({
+      title: '¿Cerrar la caja?',
+      message: `Contado: ${money(counted)}\nDiferencia: ${money(diff)}`,
+      confirmLabel: 'Cerrar caja',
+    });
+    if (!ok) return;
     run(() => moduleApi(module, '/cash/close', { method: 'POST', body: close }));
   };
 

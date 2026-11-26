@@ -217,6 +217,12 @@ export const migrations = [
     },
   },
   {
+    // El superadmin puede blanquear la contraseña de un usuario: queda una clave temporal y,
+    // hasta que el usuario elija una nueva, no puede usar el resto de la app.
+    name: 'usuarios: cambiar contraseña al entrar',
+    up: (db) => db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0'),
+  },
+  {
     // Número visible de cajas y ventas: antes se mostraba el id, que es global y lo comparten todos los
     // negocios (la primera caja de un negocio nuevo salía "Caja #2"). Ahora cada negocio y rubro tiene su
     // propia numeración desde 1. Las filas existentes se numeran en el orden en que se crearon.

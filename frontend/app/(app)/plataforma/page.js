@@ -7,6 +7,7 @@ import { ESTADOS_NEGOCIO, MODULES, TRIAL_MAX_MODULES } from '@/lib/constants';
 import { dateTime, day, money } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import { useDialog } from '@/components/ConfirmDialog';
 
 const FILTERS = {
   todos: { label: 'Todos', test: () => true },
@@ -184,6 +185,7 @@ function NegocioDetail({ id, onClose, onChanged }) {
   const detail = useLoad(() => api(`/plataforma/negocios/${id}`), [id]);
   const [tab, setTab] = useState('pago');
   const [suspendError, setSuspendError] = useState('');
+  const dialog = useDialog();
   const n = detail.data;
 
   const changed = () => {
@@ -195,7 +197,16 @@ function NegocioDetail({ id, onClose, onChanged }) {
   // o a prueba si todavía no pagó nunca.
   async function toggleSuspend() {
     const suspended = n.estado === 'suspendido';
-    if (!suspended && !window.confirm(`¿Suspender "${n.nombre}"? Nadie del negocio va a poder entrar hasta que lo reactives.`)) return;
+    if (
+      !suspended &&
+      !(await dialog.confirm({
+        title: `¿Suspender "${n.nombre}"?`,
+        message: 'Nadie del negocio va a poder entrar hasta que lo reactives. Los datos se conservan.',
+        confirmLabel: 'Suspender',
+        danger: true,
+      }))
+    )
+      return;
     setSuspendError('');
     try {
       const estado = suspended ? (n.pagos.length > 0 ? 'activo' : 'prueba') : 'suspendido';
@@ -253,6 +264,7 @@ function NegocioDetail({ id, onClose, onChanged }) {
             {[
               ['pago', 'Registrar pago'],
               ['editar', 'Editar'],
+              ['usuarios', 'Usuarios'],
               ['pagos', `Pagos (${n.pagos.length})`],
             ].map(([key, label]) => (
               <button key={key} className={`btn small ${tab === key ? 'primary' : 'outline'}`} onClick={() => setTab(key)}>
@@ -264,6 +276,7 @@ function NegocioDetail({ id, onClose, onChanged }) {
           {tab === 'pago' && <RegistrarPago negocio={n} onSaved={changed} />}
           {tab === 'editar' && <EditarNegocio negocio={n} onSaved={changed} />}
           {tab === 'pagos' && <PagosTable pagos={n.pagos} />}
+          {tab === 'usuarios' && <UsuariosNegocio negocio={n} />}
         </>
       )}
     </Modal>
@@ -441,6 +454,92 @@ function PagosTable({ pagos }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+// Usuarios del negocio y blanqueo de contraseña para quien se la olvidó.
+function UsuariosNegocio({ negocio }) {
+  const usuarios = useLoad(() => api(`/plataforma/negocios/${negocio.id}/usuarios`), [negocio.id]);
+  const [temporal, setTemporal] = useState(null);
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  async function blanquear(u) {
+    if (!window.confirm(`¿Blanquear la contraseña de "${u.username}"? Se genera una temporal y se cierran sus sesiones abiertas.`)) return;
+    setError('');
+    setCopied(false);
+    try {
+      setTemporal(await api(`/plataforma/negocios/${negocio.id}/usuarios/${u.id}/blanquear`, { method: 'POST' }));
+      usuarios.reload();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(temporal.password);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="mt">
+      {temporal && (
+        <div className="alert ok">
+          Contraseña temporal de <strong>{temporal.username}</strong>: <code style={{ fontSize: 16 }}>{temporal.password}</code>{' '}
+          <button className="btn small outline" onClick={copy}>
+            {copied ? 'Copiada' : 'Copiar'}
+          </button>
+          <div className="small">
+            Pasásela al usuario: es la única vez que se muestra. Al entrar con ella va a tener que elegir una nueva.
+          </div>
+        </div>
+      )}
+      {(error || usuarios.error) && <div className="alert error">{error || usuarios.error.message}</div>}
+      <table>
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Nombre</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Alta</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {(usuarios.data ?? []).map((u) => (
+            <tr key={u.id}>
+              <td>
+                <code>{u.username}</code>
+              </td>
+              <td>{u.name}</td>
+              <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
+              <td>
+                <span className={`badge ${u.active ? 'ok' : 'danger'}`}>{u.active ? 'Activo' : 'Desactivado'}</span>{' '}
+                {u.debe_cambiar_clave && <span className="badge warn">Clave temporal</span>}
+              </td>
+              <td>{day(u.created_at)}</td>
+              <td className="num">
+                <button className="btn small outline" onClick={() => blanquear(u)}>
+                  Blanquear clave
+                </button>
+              </td>
+            </tr>
+          ))}
+          {usuarios.data?.length === 0 && (
+            <tr>
+              <td colSpan={6} className="muted">
+                Este negocio no tiene usuarios.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

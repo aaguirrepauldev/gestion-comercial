@@ -44,13 +44,19 @@ export function AuthProvider({ children }) {
   // Vuelve a leer el usuario (y el estado de la suscripción de su negocio).
   const refresh = useCallback(async () => setUser(await api('/auth/me')), []);
 
+  // Cambiar la propia contraseña (obligatorio después de que el superadmin la blanquea).
+  const changePassword = useCallback(
+    async (actual, nueva) => start(await api('/auth/password', { method: 'PUT', body: { actual, nueva } })),
+    [start]
+  );
+
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, refresh, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, register, refresh, changePassword, logout }}>{children}</AuthContext.Provider>
   );
 }
 

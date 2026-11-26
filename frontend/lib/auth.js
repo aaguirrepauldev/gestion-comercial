@@ -38,8 +38,14 @@ export function AuthProvider({ children }) {
     [start]
   );
 
-  // Alta de un negocio nuevo: el servidor devuelve la sesión del admin ya iniciada.
-  const register = useCallback(async (data) => start(await api('/auth/registro', { method: 'POST', body: data })), [start]);
+  // Alta de un negocio nuevo: la cuenta queda pendiente hasta confirmar el email (devuelve { verificacion_pendiente, email }).
+  const register = useCallback((data) => api('/auth/registro', { method: 'POST', body: data }), []);
+
+  // Link del email de confirmación: activa la cuenta y el servidor devuelve la sesión ya iniciada.
+  const verifyEmail = useCallback(
+    async (token) => start(await api('/auth/verificar-email', { method: 'POST', body: { token } })),
+    [start]
+  );
 
   // Vuelve a leer el usuario (y el estado de la suscripción de su negocio).
   const refresh = useCallback(async () => setUser(await api('/auth/me')), []);
@@ -50,7 +56,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, refresh, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, refresh, logout }}>{children}</AuthContext.Provider>
   );
 }
 

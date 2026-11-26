@@ -1,4 +1,4 @@
-import { LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MINUTES } from './config.js';
+import { LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MINUTES, SIGNUP_MAX_PER_HOUR } from './config.js';
 import { HttpError } from './util.js';
 
 // Cuenta intentos por IP en memoria: alcanza para un solo servidor y se reinicia con la API.
@@ -47,7 +47,14 @@ export const clearLoginFailures = login.clear;
 
 // Registros de negocios nuevos por IP (evita que alguien cree cientos de cuentas de prueba).
 export const signupLimiter = createLimiter({
-  max: Number(process.env.SIGNUP_MAX_PER_HOUR ?? 5),
+  max: SIGNUP_MAX_PER_HOUR,
   windowMinutes: 60,
   message: 'Demasiados registros desde esta conexión.',
+});
+
+// Pedidos de reenvío del email de confirmación por IP (para que no se use para llenar de mails a alguien).
+export const resendLimiter = createLimiter({
+  max: 5,
+  windowMinutes: 60,
+  message: 'Demasiados pedidos de reenvío desde esta conexión.',
 });

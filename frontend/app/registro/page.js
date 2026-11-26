@@ -12,7 +12,7 @@ export default function RegistroPage() {
   const { user, register } = useAuth();
   const router = useRouter();
   const [info, setInfo] = useState(null);
-  const [form, setForm] = useState({ negocio: '', modules: [], contacto: '', name: '', username: '', password: '' });
+  const [form, setForm] = useState({ negocio: '', modules: [], contacto: '', name: '', email: '', username: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -34,7 +34,8 @@ export default function RegistroPage() {
     setBusy(true);
     setError('');
     try {
-      await register(form);
+      const res = await register(form);
+      router.push(`/verificar-email/?email=${encodeURIComponent(res.email)}`);
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -70,7 +71,12 @@ export default function RegistroPage() {
               <input value={form.name} onChange={set('name')} required />
             </label>
             <label>
-              Teléfono o email de contacto
+              Email
+              <input type="email" value={form.email} onChange={set('email')} required autoCapitalize="none" />
+              <span className="muted small">Te mandamos un link para activar la cuenta.</span>
+            </label>
+            <label>
+              Teléfono de contacto (opcional)
               <input value={form.contacto} onChange={set('contacto')} placeholder="Para avisarte antes del vencimiento" />
             </label>
             <label>

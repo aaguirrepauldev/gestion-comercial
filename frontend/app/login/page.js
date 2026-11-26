@@ -65,6 +65,8 @@ export default function LoginPage() {
         {signup && (
           <p className="center small">
             ¿Todavía no tenés cuenta? <Link href="/registro">Probalo gratis {signup.dias_prueba} días</Link>
+            <br />
+            <Link href="/verificar-email">¿No te llegó el email de confirmación?</Link>
           </p>
         )}
         {process.env.NODE_ENV !== 'production' && (

@@ -85,8 +85,30 @@ export const PAYMENT_METHODS = ['efectivo', 'debito', 'credito', 'transferencia'
 export const TRIAL_DAYS = Number(process.env.TRIAL_DAYS ?? 14);
 // Días después del vencimiento en que el negocio sigue funcionando normal (con aviso) antes de pasar a solo lectura.
 export const GRACE_DAYS = Number(process.env.GRACE_DAYS ?? 3);
+// --- Verificación de email al registrarse (con Resend: https://resend.com) ---
+// Sin RESEND_API_KEY no se manda nada: el link de confirmación se escribe en el log (útil en desarrollo).
+export const RESEND_API_KEY = process.env.RESEND_API_KEY?.trim() ?? '';
+// Remitente. Tiene que ser de un dominio verificado en Resend; onboarding@resend.dev solo sirve para probar
+// (Resend solo deja mandarle a la dirección de tu propia cuenta).
+export const EMAIL_FROM = process.env.EMAIL_FROM?.trim() || 'Gestión Comercial <onboarding@resend.dev>';
+// Dirección pública de la web, para armar el link del email. Si falta, se usa el dominio público de Railway
+// y, en último caso, el de la petición.
+export const APP_URL = (
+  process.env.APP_URL?.trim() ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '')
+).replace(/\/+$/, '');
+// Horas que vale el link de confirmación. Las cuentas sin confirmar después de ese plazo se borran solas.
+export const EMAIL_VERIFY_HOURS = Number(process.env.EMAIL_VERIFY_HOURS ?? 48);
+// Registros exitosos por IP y por hora.
+export const SIGNUP_MAX_PER_HOUR = Number(process.env.SIGNUP_MAX_PER_HOUR ?? 3);
+
 // Registro público de negocios nuevos desde la web (false para dar de alta solo desde el panel de plataforma).
-export const SIGNUP_ENABLED = (process.env.SIGNUP_ENABLED ?? 'true') !== 'false';
+// En producción sin RESEND_API_KEY nadie podría confirmar su email, así que el registro queda cerrado.
+const SIGNUP_WANTED = (process.env.SIGNUP_ENABLED ?? 'true') !== 'false';
+export const SIGNUP_ENABLED = SIGNUP_WANTED && (Boolean(RESEND_API_KEY) || !IS_PRODUCTION);
+if (SIGNUP_WANTED && !SIGNUP_ENABLED) {
+  console.warn('Registro público cerrado: falta RESEND_API_KEY para mandar los emails de confirmación.');
+}
 // Dueño de la plataforma: si SUPERADMIN_PASSWORD está definida y todavía no hay un superadmin, se crea al arrancar.
 export const SUPERADMIN_USERNAME = (process.env.SUPERADMIN_USERNAME ?? 'superadmin').trim().toLowerCase();
 export const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD;

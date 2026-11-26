@@ -8,13 +8,16 @@ import { DatabaseSync } from 'node:sqlite';
 import { startServer } from './helpers.js';
 import { migrations } from '../src/migrations.js';
 import { addDays, addMonths, todayLocal } from '../src/time.js';
+import { outbox } from '../src/email.js';
 
 let api, adminA, superadmin, adminB, negocioB;
 const today = todayLocal();
 
 const registrar = (body) =>
   api.request('POST', '/auth/registro', {
-    body: { negocio: 'Librería Sur', modules: ['libreria'], name: 'Ana', username: 'ana', password: 'clave-ana-1', ...body },
+    body: {
+      negocio: 'Librería Sur', modules: ['libreria'], name: 'Ana', username: 'ana', password: 'clave-ana-1', email: 'ana@example.com', ...body,
+    },
   });
 const setNegocio = (id, body) => api.request('PUT', `/plataforma/negocios/${id}`, { token: superadmin, body });
 
@@ -26,9 +29,13 @@ before(async () => {
 after(() => api.close());
 
 describe('registro de un negocio nuevo', () => {
-  test('crea el negocio en prueba y deja la sesión iniciada', async () => {
-    const res = await registrar();
-    assert.equal(res.status, 201);
+  test('crea el negocio en prueba y, al confirmar el email, deja la sesión iniciada', async () => {
+    const alta = await registrar();
+    assert.equal(alta.status, 201);
+    assert.equal(alta.body.verificacion_pendiente, true);
+    const token = /token=([\w-]+)/.exec(outbox.at(-1).text)[1];
+    const res = await api.request('POST', '/auth/verificar-email', { body: { token } });
+    assert.equal(res.status, 200);
     adminB = res.body.token;
     negocioB = res.body.user.negocio.id;
     assert.equal(res.body.user.role, 'admin');
@@ -39,16 +46,16 @@ describe('registro de un negocio nuevo', () => {
   });
 
   test('el nombre de usuario es único en toda la plataforma', async () => {
-    const res = await registrar({ username: 'admin' });
+    const res = await registrar({ username: 'admin', email: 'otro@example.com' });
     assert.equal(res.status, 409);
-    assert.equal((await registrar({ username: 'superadmin' })).status, 409);
+    assert.equal((await registrar({ username: 'superadmin', email: 'otro@example.com' })).status, 409);
   });
 
   test('valida los datos', async () => {
-    assert.equal((await registrar({ username: 'otro', negocio: '' })).status, 400);
-    assert.equal((await registrar({ username: 'otro', modules: [] })).status, 400);
-    assert.equal((await registrar({ username: 'otro', password: 'corta' })).status, 400);
-    assert.equal((await registrar({ username: 'con espacio' })).status, 400);
+    assert.equal((await registrar({ username: 'otro', email: 'otro@example.com', negocio: '' })).status, 400);
+    assert.equal((await registrar({ username: 'otro', email: 'otro@example.com', modules: [] })).status, 400);
+    assert.equal((await registrar({ username: 'otro', email: 'otro@example.com', password: 'corta' })).status, 400);
+    assert.equal((await registrar({ username: 'con espacio', email: 'otro@example.com' })).status, 400);
   });
 });
 

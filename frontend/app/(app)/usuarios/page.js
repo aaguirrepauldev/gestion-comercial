@@ -7,6 +7,7 @@ import { MODULES } from '@/lib/constants';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
 import { negocioLink } from '@/lib/negocio';
+import PasswordInput from '@/components/PasswordInput';
 
 const EMPTY_USER = { username: '', name: '', password: '', role: 'vendedor', modules: [], active: true };
 
@@ -145,8 +146,7 @@ function UserForm({ initial, onClose, onSaved }) {
         </label>
         <label>
           {isNew ? 'Contraseña' : 'Nueva contraseña (opcional)'}
-          <input
-            type="password"
+          <PasswordInput
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required={isNew}

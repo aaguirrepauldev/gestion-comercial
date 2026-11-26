@@ -53,6 +53,25 @@ PRECIO_MENSUAL=15000
 - Si ya tenías datos, la migración los pasa al "Negocio principal", activo y **sin vencimiento**, así que no se corta nada. Antes de migrar guarda una copia `pre-migracion-…db` en `/data/backups`.
 - Los clientes nuevos se registran solos en `https://<tu-dominio>/registro` con 14 días de prueba. Para cerrar el registro público: `SIGNUP_ENABLED=false` (y los das de alta vos desde Plataforma).
 
+### Confirmación de email (obligatoria para el registro público)
+
+Cada cuenta nueva queda inactiva hasta que el dueño abre el link que le llega por email. Los emails salen por [Resend](https://resend.com):
+
+1. Creá una cuenta en Resend, agregá tu dominio en **Domains** y cargá los registros DNS que te muestra (hasta que el dominio figure como *Verified* solo podés mandarte emails a vos mismo).
+2. En **API Keys** creá una con permiso *Sending access*.
+3. En Railway agregá:
+
+```
+RESEND_API_KEY=re_...
+EMAIL_FROM=Gestión Comercial <no-responder@tudominio.com>
+APP_URL=https://<tu-dominio>
+```
+
+- Sin `RESEND_API_KEY` el registro público queda **cerrado** en producción (el resto de la app funciona igual). En desarrollo el link se escribe en el log de la API.
+- `APP_URL` es la dirección que va en el link; si falta se usa el dominio público de Railway.
+- Las cuentas que no confirman en 48 horas (`EMAIL_VERIFY_HOURS`) se borran solas y liberan el usuario y el email.
+- Además, cada IP puede registrar como máximo 3 negocios por hora (`SIGNUP_MAX_PER_HOUR`).
+
 Todos los negocios comparten la misma base SQLite del volumen. Alcanza para decenas de negocios chicos en un solo servicio; si crece mucho o querés más de una instancia, el paso siguiente es PostgreSQL (Railway lo ofrece como servicio aparte).
 
 ## Backups

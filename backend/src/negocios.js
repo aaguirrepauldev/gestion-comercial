@@ -63,7 +63,8 @@ export function cleanUsername(username) {
 }
 
 // Crea un negocio nuevo con su primer usuario administrador. Por defecto arranca en prueba por TRIAL_DAYS días.
-export function createNegocio({ nombre, modules, contacto, admin, estado = 'prueba', vence_el }) {
+// Con admin.email y emailVerificado = false (registro desde la web) el admin no puede entrar hasta confirmar el email.
+export function createNegocio({ nombre, modules, contacto, admin, estado = 'prueba', vence_el, emailVerificado = true }) {
   const name = String(nombre ?? '').trim();
   if (!name) throw new HttpError(400, 'El nombre del negocio es obligatorio');
   if (name.length > 80) throw new HttpError(400, 'El nombre del negocio es demasiado largo');
@@ -85,9 +86,10 @@ export function createNegocio({ nombre, modules, contacto, admin, estado = 'prue
     const userId = Number(
       db
         .prepare(
-          "INSERT INTO users (negocio_id, username, password_hash, name, role, modules, created_at) VALUES (?, ?, ?, ?, 'admin', ?, now_local())"
+          "INSERT INTO users (negocio_id, username, password_hash, name, role, modules, email, email_verificado, created_at) VALUES (?, ?, ?, ?, 'admin', ?, ?, ?, now_local())"
         )
-        .run(negocioId, username, bcrypt.hashSync(String(admin.password), 10), adminName, mods).lastInsertRowid
+        .run(negocioId, username, bcrypt.hashSync(String(admin.password), 10), adminName, mods, admin.email ?? null, emailVerificado ? 1 : 0)
+        .lastInsertRowid
     );
     return { negocioId, userId };
   });

@@ -195,4 +195,24 @@ export const migrations = [
       }
     },
   },
+  {
+    // Los negocios que se registran desde la web quedan inactivos hasta confirmar el email del admin.
+    // Los usuarios existentes (y los que se crean a mano) quedan como verificados.
+    name: 'usuarios: email verificado',
+    up: (db) =>
+      db.exec(`
+      ALTER TABLE users ADD COLUMN email TEXT;
+      ALTER TABLE users ADD COLUMN email_verificado INTEGER NOT NULL DEFAULT 1;
+      CREATE UNIQUE INDEX ux_users_email ON users(email) WHERE email IS NOT NULL;
+
+      -- Links de confirmación pendientes. Se guarda el hash del token, nunca el token.
+      CREATE TABLE email_verificaciones (
+        token_hash TEXT PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES users(id),
+        expira     INTEGER NOT NULL,   -- milisegundos desde 1970 (Date.now())
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX ix_email_verificaciones_user ON email_verificaciones(user_id);
+      `),
+  },
 ];

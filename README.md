@@ -13,7 +13,7 @@ Todos los negocios comparten la misma API y la misma base, pero cada uno ve solo
 
 - La tabla `negocios` guarda nombre, rubros, estado (`prueba`, `activo`, `suspendido`) y fecha de vencimiento. Usuarios, productos, cajas y ventas tienen `negocio_id`.
 - En cada pedido, `requireAuth` relee el usuario y su negocio de la base y deja `req.negocioId`; todas las consultas filtran por ese id. Un producto, venta o usuario de otro negocio responde 404.
-- **Alta**: desde la web (`/registro`) cualquiera crea su negocio con `TRIAL_DAYS` días de prueba (14 por defecto). También se puede dar de alta a mano desde el panel de plataforma.
+- **Alta**: desde la web (`/registro`) cualquiera crea su negocio con `TRIAL_DAYS` días de prueba (14 por defecto). La cuenta queda inactiva hasta confirmar el email con el link que se manda por [Resend](https://resend.com) (`RESEND_API_KEY`), y cada IP puede registrar hasta `SIGNUP_MAX_PER_HOUR` negocios por hora (3). También se puede dar de alta a mano desde el panel de plataforma (sin confirmación).
 - **Vencimiento**: hasta `GRACE_DAYS` días después de vencer (3 por defecto) todo sigue funcionando con un aviso. Después el negocio queda en **solo lectura**: puede ver sus datos pero cualquier cambio responde `402`. Un negocio **suspendido** no puede entrar. "Vencido" no se guarda: se calcula con la fecha, así no hace falta ninguna tarea programada.
 - **Pago por transferencia**: el cliente ve en **Mi suscripción** los datos de `DATOS_TRANSFERENCIA`. Cuando llega la transferencia, el superadmin la registra en **Plataforma → negocio → Registrar pago**: queda en la tabla `pagos` y el vencimiento se extiende N meses desde el vencimiento actual (o desde hoy si ya había vencido).
 - **Superadmin**: un usuario sin negocio que solo ve el panel **Plataforma** (todos los negocios, estado, último pago, última venta, alta manual, suspender, corregir vencimiento) y es el único que descarga la copia completa de la base. Se crea al arrancar si está definida `SUPERADMIN_PASSWORD`.
@@ -53,7 +53,7 @@ En producción corre **un solo servicio**: `npm run build` compila la web como s
 - `JWT_SECRET`: clave de al menos 32 caracteres para firmar las sesiones.
 - `ADMIN_PASSWORD` o `SUPERADMIN_PASSWORD`: solo la primera vez, con la base vacía. Con `ADMIN_PASSWORD` se crea el negocio 1 con su usuario `admin` (sin vencimiento); con solo `SUPERADMIN_PASSWORD` la base arranca sin negocios y se registran desde la web.
 
-Variables de suscripciones (opcionales): `SUPERADMIN_USERNAME` (por defecto `superadmin`), `SUPERADMIN_PASSWORD`, `DATOS_TRANSFERENCIA` (alias/CBU que ve el cliente; `\n` para saltos de línea), `PRECIO_MENSUAL`, `TRIAL_DAYS` (14), `GRACE_DAYS` (3), `SIGNUP_ENABLED` (`false` para cerrar el registro público) y `SIGNUP_MAX_PER_HOUR` (5 registros por IP).
+Variables de suscripciones (opcionales): `SUPERADMIN_USERNAME` (por defecto `superadmin`), `SUPERADMIN_PASSWORD`, `DATOS_TRANSFERENCIA` (alias/CBU que ve el cliente; `\n` para saltos de línea), `PRECIO_MENSUAL`, `TRIAL_DAYS` (14), `GRACE_DAYS` (3), `SIGNUP_ENABLED` (`false` para cerrar el registro público) `SIGNUP_MAX_PER_HOUR` (3 registros por IP), `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` y `EMAIL_VERIFY_HOURS` (48) para la confirmación de email (ver docs/deploy.md).
 
 `CORS_ORIGIN` solo hace falta si la web corre en otra dirección que la API. En Railway, además, la API no arranca sin `NODE_ENV=production` ni sin un volumen para la base.
 
@@ -124,7 +124,9 @@ Todas las rutas (salvo login) requieren `Authorization: Bearer <token>`.
 POST /api/auth/login                     { username, password } → { token, user }
 GET  /api/auth/me                        (user.negocio trae estado, vence_el, dias_restantes, solo_lectura)
 GET  /api/auth/registro                  → { habilitado, dias_prueba }
-POST /api/auth/registro                  { negocio, modules, contacto, name, username, password } → { token, user }
+POST /api/auth/registro                  { negocio, modules, email, contacto, name, username, password } → { verificacion_pendiente, email }
+POST /api/auth/verificar-email           { token } → { token, user }
+POST /api/auth/reenviar-verificacion     { email } → { ok }
 GET|POST /api/users        PUT /api/users/:id                       (admin, de su negocio)
 GET  /api/suscripcion                                               (estado, datos de transferencia, pagos)
 

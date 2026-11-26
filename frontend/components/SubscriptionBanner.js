@@ -40,9 +40,9 @@ export default function SubscriptionBanner() {
     // Durante la prueba solo se lo mostramos al admin, para no molestar a los vendedores.
     if (n.estado === 'prueba' && user.role !== 'admin' && n.dias_restantes > 3) return null;
     return (
-      <div className={`alert ${n.dias_restantes <= 3 ? 'warn' : ''} banner`}>
+      <div className="alert banner banner-yellow">
         <span>
-          {que} vence {dias} ({day(n.vence_el)}).
+          <strong>{que} vence {dias}</strong> ({day(n.vence_el)}).
         </span>
         {link}
       </div>

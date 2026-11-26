@@ -35,6 +35,7 @@ async function fail(path, res) {
   }
   const err = new Error(data?.error ?? `Error ${res.status}`);
   err.status = res.status;
+  if (data?.sugerencia) err.sugerencia = data.sugerencia;
   throw err;
 }
 

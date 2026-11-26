@@ -7,6 +7,7 @@ import { ESTADOS_NEGOCIO, MODULES, TRIAL_MAX_MODULES } from '@/lib/constants';
 import { dateTime, day, money } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import { negocioLink } from '@/lib/negocio';
 import { useDialog } from '@/components/ConfirmDialog';
 
 const FILTERS = {
@@ -124,6 +125,7 @@ export default function PlataformaPage() {
                   <td>
                     <strong>{n.nombre}</strong>{' '}
                     <span className="muted">{n.modules.map((m) => MODULES[m]?.icon).join(' ')}</span>
+                    <div className="small muted">/{n.slug}</div>
                   </td>
                   <td>{n.admin_username ?? '—'}</td>
                   <td>{n.contacto ?? '—'}</td>
@@ -354,6 +356,7 @@ function RegistrarPago({ negocio, onSaved }) {
 function EditarNegocio({ negocio, onSaved }) {
   const [form, setForm] = useState({
     nombre: negocio.nombre,
+    slug: negocio.slug,
     estado: negocio.estado_guardado,
     vence_el: negocio.vence_el ?? '',
     modules: negocio.modules,
@@ -386,6 +389,20 @@ function EditarNegocio({ negocio, onSaved }) {
       <label>
         Contacto
         <input value={form.contacto} onChange={set('contacto')} />
+      </label>
+      <label className="span-2">
+        Código (dirección para entrar)
+        <input
+          value={form.slug}
+          onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+          required
+          autoCapitalize="none"
+        />
+        <span className="small muted">
+          {form.slug === negocio.slug
+            ? `Entran desde ${negocioLink(negocio.slug)}`
+            : `Al guardar, el link pasa a ser ${negocioLink(form.slug)} y el anterior deja de funcionar: avisale al negocio.`}
+        </span>
       </label>
       <label>
         Estado

@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { ROLES } from '../config.js';
 import { signToken, toPublicUser } from '../auth.js';
 import { HttpError } from '../util.js';
-import { checkPassword, cleanUsername } from '../negocios.js';
+import { checkPassword, checkUsernameFree, cleanUsername } from '../negocios.js';
 
 // Usuarios del negocio del admin que hace el pedido (nunca de otro).
 const router = Router();
@@ -34,10 +34,7 @@ router.post('/', (req, res) => {
   checkPassword(password);
   const mods = parseUserModules(req, modules);
   if (role !== 'admin' && !mods) throw new HttpError(400, 'Asigná al menos un módulo');
-  if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(clean)) {
-    // Los nombres de usuario son únicos en toda la plataforma (el login no pide el negocio).
-    throw new HttpError(409, `El usuario "${clean}" ya existe. Probá con otro, por ejemplo agregándole el nombre del negocio.`);
-  }
+  checkUsernameFree(req.negocioId, clean);
 
   const { lastInsertRowid } = db
     .prepare(

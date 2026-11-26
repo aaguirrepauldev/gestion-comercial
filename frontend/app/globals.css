@@ -234,3 +234,8 @@ tr.struck td .badge { text-decoration: none; }
 textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
 .filters { display: flex; gap: 6px; flex-wrap: wrap; }
 .stat .badge { align-self: flex-start; }
+
+/* Botón que se ve como un link (p. ej. "Otro negocio" en el login). */
+button.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
+.link-box { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.link-box code { word-break: break-all; }

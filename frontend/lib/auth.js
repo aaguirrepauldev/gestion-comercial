@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api, clearToken, getToken, setToken } from './api';
+import { saveNegocio } from './negocio';
 
 const AuthContext = createContext(null);
 
@@ -29,12 +30,15 @@ export function AuthProvider({ children }) {
 
   const start = useCallback(({ token, user }) => {
     setToken(token);
+    // La próxima vez /login ya sabe a qué negocio entrar.
+    if (user.negocio?.slug) saveNegocio(user.negocio.slug);
     setUser(user);
     return user;
   }, []);
 
   const login = useCallback(
-    async (username, password) => start(await api('/auth/login', { method: 'POST', body: { username, password } })),
+    async (negocio, username, password) =>
+      start(await api('/auth/login', { method: 'POST', body: { negocio, username, password } })),
     [start]
   );
 

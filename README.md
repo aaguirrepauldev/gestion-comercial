@@ -18,7 +18,7 @@ Todos los negocios comparten la misma API y la misma base, pero cada uno ve solo
 - **Pago por transferencia**: el cliente ve en **Mi suscripción** los datos de `DATOS_TRANSFERENCIA`. Cuando llega la transferencia, el superadmin la registra en **Plataforma → negocio → Registrar pago**: queda en la tabla `pagos` y el vencimiento se extiende N meses desde el vencimiento actual (o desde hoy si ya había vencido).
 - **Superadmin**: un usuario sin negocio que solo ve el panel **Plataforma** (todos los negocios, estado, último pago, última venta, alta manual, suspender, corregir vencimiento) y es el único que descarga la copia completa de la base. Se crea al arrancar si está definida `SUPERADMIN_PASSWORD`.
 - **Usuarios y contraseñas olvidadas**: en **Plataforma → negocio → Usuarios** el superadmin ve todos los usuarios del negocio (rol, activo) y puede **blanquear la clave** de cualquiera: se genera una contraseña temporal que se muestra una sola vez, se cierran las sesiones abiertas de ese usuario y, al entrar con la temporal, tiene que elegir una nueva antes de usar la app. Cada blanqueo queda en el log del servidor.
-- Los nombres de usuario son únicos en toda la plataforma (el login no pide el negocio).
+- **Usuarios únicos por negocio**: cada negocio tiene un código único (`libreria-centro`) que se elige al registrarse a partir del nombre, y sus usuarios solo no se repiten dentro de él (dos negocios pueden tener cada uno su `venta`). Se entra desde el link del negocio, `tudominio.com/libreria-centro`, que abre el login con el negocio ya elegido; desde `/login` se pide el código y el navegador lo recuerda. El admin ve su link en **Usuarios** y el superadmin puede cambiar el código en **Plataforma → Editar** (el link anterior deja de andar). El superadmin entra sin código. Las palabras que usa la app (`login`, `registro`, `plataforma`, los rubros…) no se pueden usar como código.
 
 Mercado Pago queda para más adelante: la tabla `pagos` ya tiene `metodo` y `external_id`, y `registrarPago()` en `routes/plataforma.js` es la función que llamaría un webhook.
 
@@ -79,6 +79,8 @@ El esquema se arma con migraciones en `backend/src/migrations.js`, que corren so
 Las fechas (ventas, cajas, movimientos) se guardan en la hora del negocio, no en la del servidor, así "hoy" es el mismo día aunque la API corra en la nube en UTC. Por defecto es `America/Argentina/Buenos_Aires`; se puede cambiar con la variable de entorno `TIME_ZONE` (por ejemplo `TIME_ZONE=America/Argentina/Cordoba`).
 
 ### Usuarios de prueba
+
+El negocio de ejemplo tiene el código `demo` (link `http://localhost:4000/demo` con la web compilada). El superadmin entra sin código.
 
 | Usuario      | Contraseña      | Rol        | Módulos            |
 |--------------|-----------------|------------|--------------------|

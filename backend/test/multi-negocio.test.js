@@ -38,10 +38,19 @@ describe('registro de un negocio nuevo', () => {
     assert.equal(res.body.user.negocio.dias_restantes, 14);
   });
 
-  test('el nombre de usuario es único en toda la plataforma', async () => {
-    const res = await registrar({ username: 'admin' });
+  test('recibe un código propio a partir del nombre', async () => {
+    const { body } = await api.request('GET', `/auth/negocio/libreria-sur`);
+    assert.deepEqual(body, { nombre: 'Librería Sur', slug: 'libreria-sur' });
+  });
+
+  test('el código del negocio es único y no puede ser una ruta de la app', async () => {
+    const res = await registrar({ username: 'otro', slug: 'libreria-sur' });
     assert.equal(res.status, 409);
-    assert.equal((await registrar({ username: 'superadmin' })).status, 409);
+    assert.equal(res.body.sugerencia, 'libreria-sur-2');
+    assert.equal((await registrar({ username: 'otro', slug: 'login' })).status, 400);
+    assert.equal((await registrar({ username: 'otro', slug: 'libreria' })).status, 400);
+    assert.equal((await registrar({ username: 'otro', slug: 'Con Espacio' })).status, 400);
+    assert.equal((await registrar({ username: 'superadmin', slug: 'otro-negocio' })).status, 409);
   });
 
   test('valida los datos', async () => {

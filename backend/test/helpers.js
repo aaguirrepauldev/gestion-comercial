@@ -26,8 +26,9 @@ export async function startServer() {
     return { status: res.status, body: await res.json().catch(() => null) };
   }
 
-  async function login(username, password) {
-    const res = await request('POST', '/auth/login', { body: { username, password } });
+  // Sin `negocio` entra el superadmin o un usuario cuyo nombre existe en un solo negocio.
+  async function login(username, password, negocio) {
+    const res = await request('POST', '/auth/login', { body: { negocio, username, password } });
     if (res.status !== 200) throw new Error(`Login de ${username} falló: ${res.status}`);
     return res.body.token;
   }

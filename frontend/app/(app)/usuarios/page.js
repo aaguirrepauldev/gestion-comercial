@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { MODULES } from '@/lib/constants';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import { negocioLink } from '@/lib/negocio';
 
 const EMPTY_USER = { username: '', name: '', password: '', role: 'vendedor', modules: [], active: true };
 
@@ -26,6 +27,8 @@ export default function UsuariosPage() {
           </button>
         </div>
       </header>
+
+      <LinkNegocio slug={user.negocio.slug} />
 
       <section className="card">
         {users.error && <div className="alert error">{users.error.message}</div>}
@@ -69,6 +72,35 @@ export default function UsuariosPage() {
   );
 }
 
+// El link que el admin les pasa a sus empleados: abre el login con el negocio ya elegido.
+function LinkNegocio({ slug }) {
+  const [copied, setCopied] = useState(false);
+  const link = negocioLink(slug);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  }
+
+  return (
+    <section className="card">
+      <div className="link-box">
+        <span>Link para entrar a tu negocio:</span>
+        <code>{link}</code>
+        <button type="button" className="btn small outline" onClick={copy}>
+          {copied ? 'Copiado ✓' : 'Copiar'}
+        </button>
+      </div>
+      <p className="small muted" style={{ margin: '6px 0 0' }}>
+        Pasáselo a tus empleados: entran con su usuario y contraseña, sin tener que escribir el código del negocio.
+      </p>
+    </section>
+  );
+}
+
 function UserForm({ initial, onClose, onSaved }) {
   const { user } = useAuth();
   const isNew = !initial.id;
@@ -105,7 +137,7 @@ function UserForm({ initial, onClose, onSaved }) {
             required
             autoFocus={isNew}
           />
-          {isNew && <span className="small muted">Tiene que ser único en todo el sistema (ej.: juan.{user.negocio.nombre.split(' ')[0].toLowerCase()}).</span>}
+          {isNew && <span className="small muted">No se puede repetir dentro de tu negocio (ej.: venta, juan).</span>}
         </label>
         <label>
           Nombre

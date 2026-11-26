@@ -463,9 +463,16 @@ function UsuariosNegocio({ negocio }) {
   const [temporal, setTemporal] = useState(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const dialog = useDialog();
 
   async function blanquear(u) {
-    if (!window.confirm(`¿Blanquear la contraseña de "${u.username}"? Se genera una temporal y se cierran sus sesiones abiertas.`)) return;
+    const ok = await dialog.confirm({
+      title: `¿Blanquear la contraseña de "${u.username}"?`,
+      message: 'Se genera una contraseña temporal y se cierran sus sesiones abiertas. Al entrar va a tener que elegir una nueva.',
+      confirmLabel: 'Blanquear clave',
+      danger: true,
+    });
+    if (!ok) return;
     setError('');
     setCopied(false);
     try {

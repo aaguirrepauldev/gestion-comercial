@@ -216,4 +216,10 @@ export const migrations = [
       }
     },
   },
+  {
+    // El superadmin puede blanquear la contraseña de un usuario: queda una clave temporal y,
+    // hasta que el usuario elija una nueva, no puede usar el resto de la app.
+    name: 'usuarios: cambiar contraseña al entrar',
+    up: (db) => db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0'),
+  },
 ];

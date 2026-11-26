@@ -20,6 +20,8 @@ export function toPublicUser(row, negocio = null) {
         ? [...negocioModules]
         : row.modules.split(',').filter((m) => negocioModules.includes(m)),
     active: Boolean(row.active),
+    // Tiene una contraseña temporal (blanqueada por el superadmin) y tiene que elegir una nueva.
+    debe_cambiar_clave: Boolean(row.must_change_password),
     created_at: row.created_at,
     negocio,
   };
@@ -40,6 +42,8 @@ export function loadSessionUser(row) {
 export const signToken = (row) =>
   jwt.sign({ sub: row.id, ver: row.token_version, neg: row.negocio_id ?? null }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
+const CAMBIO_CLAVE_PATHS = new Set(['/api/auth/me', '/api/auth/password']);
+
 export function requireAuth(req, _res, next) {
   const [scheme, token] = (req.headers.authorization ?? '').split(' ');
   if (scheme !== 'Bearer' || !token) throw new HttpError(401, 'No autenticado');
@@ -54,6 +58,10 @@ export function requireAuth(req, _res, next) {
   if (!row) throw new HttpError(401, 'Usuario inexistente o inactivo');
   // Tokens emitidos antes del último cambio de contraseña (los viejos no traen `ver`).
   if ((payload.ver ?? 0) !== row.token_version) throw new HttpError(401, 'Sesión expirada o inválida');
+  // Con una contraseña temporal solo se puede consultar la sesión y elegir una nueva.
+  if (row.must_change_password && !CAMBIO_CLAVE_PATHS.has(req.baseUrl + req.path)) {
+    throw new HttpError(403, 'Tenés que elegir una contraseña nueva antes de seguir.');
+  }
   req.user = loadSessionUser(row);
   // Todas las consultas de datos de un negocio filtran por este id.
   req.negocioId = row.negocio_id ?? null;

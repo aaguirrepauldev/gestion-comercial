@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { db, tx } from '../db.js';
 import { signToken } from '../auth.js';
@@ -126,6 +127,48 @@ router.post('/negocios/:id/pagos', (req, res) => {
   registrarPago(req.params.id, { ...body, metodo: 'transferencia', external_id: null, userId: req.user.id });
   const row = findNegocio(req.params.id);
   res.status(201).json(negocioDetail(row));
+});
+
+// Usuarios de un negocio, para soporte: quién está cargado, con qué rol y si está activo.
+router.get('/negocios/:id/usuarios', (req, res) => {
+  const row = findNegocio(req.params.id);
+  res.json(
+    db
+      .prepare(
+        `SELECT id, username, name, role, active, must_change_password, created_at FROM users
+         WHERE negocio_id = ? ORDER BY role = 'admin' DESC, name`
+      )
+      .all(row.id)
+      .map((u) => ({
+        id: u.id,
+        username: u.username,
+        name: u.name,
+        role: u.role,
+        active: Boolean(u.active),
+        debe_cambiar_clave: Boolean(u.must_change_password),
+        created_at: u.created_at,
+      }))
+  );
+});
+
+// Sin letras ni números que se confundan al dictarla (0/O, 1/l/I).
+const CLAVE_ALFABETO = 'abcdefghjkmnpqrstuvwxyz23456789';
+const claveTemporal = (largo = 10) => Array.from({ length: largo }, () => CLAVE_ALFABETO[crypto.randomInt(CLAVE_ALFABETO.length)]).join('');
+
+// Blanquear la contraseña de un usuario que se la olvidó: se genera una temporal que se muestra una sola
+// vez (no se guarda en claro), se cierran sus sesiones abiertas y al entrar tiene que elegir una nueva.
+router.post('/negocios/:id/usuarios/:userId/blanquear', (req, res) => {
+  const negocio = findNegocio(req.params.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND negocio_id = ?').get(Number(req.params.userId), negocio.id);
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
+  const password = claveTemporal();
+  db.prepare(
+    'UPDATE users SET password_hash = ?, must_change_password = 1, token_version = token_version + 1 WHERE id = ?'
+  ).run(bcrypt.hashSync(password, 10), user.id);
+  console.log(
+    `[plataforma] ${req.user.username} blanqueó la contraseña de "${user.username}" (usuario ${user.id}, negocio ${negocio.id})`
+  );
+  res.json({ username: user.username, password });
 });
 
 // Cambiar la contraseña del propio superadmin.

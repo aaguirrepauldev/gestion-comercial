@@ -82,7 +82,9 @@ router.post('/', (req, res) => {
     const id = Number(
       db
         .prepare(
-          'INSERT INTO sales (negocio_id, module, session_id, user_id, total, payment_method, created_at) VALUES (?, ?, ?, ?, ?, ?, now_local())'
+          `INSERT INTO sales (negocio_id, module, numero, session_id, user_id, total, payment_method, created_at)
+           SELECT ?1, ?2, COALESCE(MAX(numero), 0) + 1, ?3, ?4, ?5, ?6, now_local()
+           FROM sales WHERE negocio_id = ?1 AND module = ?2`
         )
         .run(req.negocioId, module, session.id, req.user.id, total, payment_method).lastInsertRowid
     );
@@ -114,7 +116,7 @@ router.post('/:id/cancel', requireAdmin, (req, res) => {
       db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(stockAfter, item.product_id);
       recordStockMovement({
         productId: item.product_id, type: 'anulacion', qty: item.qty, stockAfter,
-        saleId: sale.id, note: `Anulación venta #${sale.id}`, userId: req.user.id,
+        saleId: sale.id, note: `Anulación venta #${sale.numero}`, userId: req.user.id,
       });
     }
     db.prepare(

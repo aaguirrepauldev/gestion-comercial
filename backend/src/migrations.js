@@ -216,4 +216,28 @@ export const migrations = [
       }
     },
   },
+  {
+    // Número visible de cajas y ventas: antes se mostraba el id, que es global y lo comparten todos los
+    // negocios (la primera caja de un negocio nuevo salía "Caja #2"). Ahora cada negocio y rubro tiene su
+    // propia numeración desde 1. Las filas existentes se numeran en el orden en que se crearon.
+    name: 'cajas y ventas: número por negocio',
+    up: (db) => {
+      for (const table of ['cash_sessions', 'sales']) {
+        db.exec(`
+        ALTER TABLE ${table} ADD COLUMN numero INTEGER;
+        UPDATE ${table} SET numero = (
+          SELECT n FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY negocio_id, module ORDER BY id) AS n FROM ${table}) r
+          WHERE r.id = ${table}.id
+        );
+        CREATE UNIQUE INDEX ux_${table}_numero ON ${table}(negocio_id, module, numero);
+        `);
+      }
+      // La nota de las anulaciones nombraba la venta por su id.
+      db.exec(`
+      UPDATE stock_movements
+      SET note = 'Anulación venta #' || (SELECT numero FROM sales WHERE sales.id = stock_movements.sale_id)
+      WHERE type = 'anulacion' AND sale_id IS NOT NULL AND note = 'Anulación venta #' || sale_id;
+      `);
+    },
+  },
 ];

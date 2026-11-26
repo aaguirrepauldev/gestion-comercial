@@ -98,7 +98,9 @@ router.post('/open', (req, res) => {
 
   const { lastInsertRowid } = db
     .prepare(
-      'INSERT INTO cash_sessions (negocio_id, module, opened_by, opening_amount, opened_at) VALUES (?, ?, ?, ?, now_local())'
+      `INSERT INTO cash_sessions (negocio_id, module, numero, opened_by, opening_amount, opened_at)
+       SELECT ?1, ?2, COALESCE(MAX(numero), 0) + 1, ?3, ?4, now_local()
+       FROM cash_sessions WHERE negocio_id = ?1 AND module = ?2`
     )
     .run(req.negocioId, module, req.user.id, amount);
   res.status(201).json(sessionSummary(Number(lastInsertRowid)));

@@ -21,7 +21,7 @@ export default function SalesTable({ sales, onSelect }) {
       <tbody>
         {sales.map((s) => (
           <tr key={s.id} onClick={() => onSelect(s)} className={s.status === 'anulada' ? 'struck' : ''}>
-            <td>{s.id}</td>
+            <td>{s.numero}</td>
             <td>{time(s.created_at)}</td>
             <td>{s.user_name}</td>
             <td>{PAYMENT_METHODS[s.payment_method]}</td>

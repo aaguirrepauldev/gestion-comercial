@@ -75,7 +75,12 @@ export const TIME_ZONE = process.env.TIME_ZONE ?? 'America/Argentina/Buenos_Aire
 // Largo mínimo de las contraseñas de usuario.
 export const MIN_PASSWORD_LENGTH = 8;
 
-export const MODULES = ['libreria', 'avicola'];
+// Rubros (tipos de negocio). Cada uno es un módulo con su propio stock, caja y ventas.
+// Para sumar uno: agregarlo acá y en frontend/lib/constants.js (MODULES) con el mismo id.
+export const MODULES = [
+  'libreria', 'avicola', 'almacen', 'kiosco', 'verduleria', 'carniceria',
+  'panaderia', 'ferreteria', 'dietetica', 'petshop', 'indumentaria', 'bazar',
+];
 export const ROLES = ['admin', 'vendedor'];
 export const PAYMENT_METHODS = ['efectivo', 'debito', 'credito', 'transferencia'];
 
@@ -95,3 +100,5 @@ export const TRANSFER_INFO = (process.env.DATOS_TRANSFERENCIA ?? '').replaceAll(
 // Precio mensual de referencia que se sugiere al registrar un pago (0 = sin sugerencia).
 export const MONTHLY_PRICE = Number(process.env.PRECIO_MENSUAL ?? 0);
 export const NEGOCIO_ESTADOS = ['prueba', 'activo', 'suspendido'];
+// Rubros que puede tener un negocio mientras está en prueba. Para habilitar más, se pasa a activo (plan pago).
+export const TRIAL_MAX_MODULES = 1;

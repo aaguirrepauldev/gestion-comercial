@@ -107,16 +107,30 @@ export function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+const TEMPLATE_EXAMPLES = {
+  libreria: [
+    ['LIB-101', 'Cuaderno espiralado A4', 'Cuadernos', 'unidad', '2500', '4200', '30', '5'],
+    ['LIB-102', 'Papel madera', 'Papelería', 'kg', '1800', '3000', '12,5', '2'],
+  ],
+  avicola: [
+    ['AVI-101', 'Pollo entero', 'Pollo fresco', 'kg', '2300', '3600', '50,5', '10'],
+    ['AVI-102', 'Huevos blancos maple x30', 'Huevos', 'unidad', '4200', '6000', '20', '5'],
+  ],
+  verduleria: [
+    ['VER-101', 'Papa', 'Verduras', 'kg', '600', '1100', '80', '20'],
+    ['VER-102', 'Lechuga', 'Verduras', 'unidad', '700', '1300', '25', '5'],
+  ],
+  carniceria: [
+    ['CAR-101', 'Asado', 'Vacuno', 'kg', '7500', '11000', '40,5', '10'],
+    ['CAR-102', 'Chorizo', 'Embutidos', 'kg', '4800', '7500', '15', '5'],
+  ],
+};
+const GENERIC_EXAMPLES = [
+  ['P-101', 'Producto por unidad', 'General', 'unidad', '1000', '1600', '20', '5'],
+  ['P-102', 'Producto por peso', 'General', 'kg', '2000', '3200', '10,5', '2'],
+];
+
 export function downloadCatalogTemplate(module) {
-  const examples =
-    module === 'avicola'
-      ? [
-          ['AVI-101', 'Pollo entero', 'Pollo fresco', 'kg', '2300', '3600', '50,5', '10'],
-          ['AVI-102', 'Huevos blancos maple x30', 'Huevos', 'unidad', '4200', '6000', '20', '5'],
-        ]
-      : [
-          ['LIB-101', 'Cuaderno espiralado A4', 'Cuadernos', 'unidad', '2500', '4200', '30', '5'],
-          ['LIB-102', 'Papel madera', 'Papelería', 'kg', '1800', '3000', '12,5', '2'],
-        ];
+  const examples = TEMPLATE_EXAMPLES[module] ?? GENERIC_EXAMPLES;
   downloadCsv(`plantilla-productos-${module}.csv`, [CATALOG_COLUMNS.map((c) => c.header), ...examples]);
 }

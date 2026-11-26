@@ -5,7 +5,7 @@ import { signToken } from '../auth.js';
 import { NEGOCIO_ESTADOS } from '../config.js';
 import { HttpError, round2, toNumber } from '../util.js';
 import { addMonths, todayLocal } from '../time.js';
-import { checkPassword, createNegocio, getNegocio, isDay, negocioStatus, parseModules } from '../negocios.js';
+import { checkPassword, checkTrialModules, createNegocio, getNegocio, isDay, negocioStatus, parseModules } from '../negocios.js';
 
 // Panel del dueño de la plataforma (solo superadmin): todos los negocios, sus suscripciones y pagos.
 const router = Router();
@@ -76,6 +76,8 @@ router.put('/negocios/:id', (req, res) => {
     venceEl = body.vence_el || null;
   }
   const modules = body.modules !== undefined ? parseModules(body.modules) : row.modules;
+  // Solo se valida si cambian los rubros o el estado, para no trabar la edición de negocios viejos.
+  if (body.modules !== undefined || body.estado !== undefined) checkTrialModules(estado, modules);
   const text = (key) => (body[key] !== undefined ? String(body[key] ?? '').trim() || null : row[key]);
 
   db.prepare(

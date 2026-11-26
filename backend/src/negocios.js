@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { db, tx } from './db.js';
-import { GRACE_DAYS, MIN_PASSWORD_LENGTH, MODULES, SUPERADMIN_USERNAME, TRIAL_DAYS } from './config.js';
+import { GRACE_DAYS, MIN_PASSWORD_LENGTH, MODULES, SUPERADMIN_USERNAME, TRIAL_DAYS, TRIAL_MAX_MODULES } from './config.js';
 import { addDays, daysBetween, todayLocal } from './time.js';
 import { HttpError } from './util.js';
 
@@ -43,8 +43,16 @@ export const getNegocio = (id) => db.prepare('SELECT * FROM negocios WHERE id = 
 export function parseModules(modules, { required = true } = {}) {
   const list = Array.isArray(modules) ? modules : String(modules ?? '').split(',');
   const clean = MODULES.filter((m) => list.includes(m));
-  if (required && clean.length === 0) throw new HttpError(400, 'Elegí al menos un rubro (librería o avícola)');
+  if (required && clean.length === 0) throw new HttpError(400, 'Elegí al menos un rubro');
   return clean.join(',');
+}
+
+// En la prueba gratis el negocio usa un solo rubro; con el plan pago se pueden habilitar varios.
+export function checkTrialModules(estado, modules) {
+  if (estado !== 'prueba') return;
+  if (modules.split(',').filter(Boolean).length > TRIAL_MAX_MODULES) {
+    throw new HttpError(400, 'En la prueba gratis se puede elegir un solo rubro. Con el plan pago se pueden sumar más.');
+  }
 }
 
 export function checkPassword(password) {
@@ -68,6 +76,7 @@ export function createNegocio({ nombre, modules, contacto, admin, estado = 'prue
   if (!name) throw new HttpError(400, 'El nombre del negocio es obligatorio');
   if (name.length > 80) throw new HttpError(400, 'El nombre del negocio es demasiado largo');
   const mods = parseModules(modules);
+  checkTrialModules(estado, mods);
   const username = cleanUsername(admin?.username);
   const adminName = String(admin?.name ?? '').trim() || 'Administrador';
   checkPassword(admin?.password);

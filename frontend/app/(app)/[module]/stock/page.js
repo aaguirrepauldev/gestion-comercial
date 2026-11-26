@@ -10,10 +10,12 @@ import { dateTime, money, qty } from '@/lib/format';
 import { useDebounced } from '@/lib/useDebounced';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import { useDialog } from '@/components/ConfirmDialog';
 
 const EMPTY_PRODUCT = { code: '', name: '', category: '', unit: 'unidad', cost: '', price: '', stock: '', min_stock: '' };
 
 export default function StockPage() {
+  const dialog = useDialog();
   const { module } = useParams();
   const { user } = useAuth();
   const isAdmin = user.role === 'admin';
@@ -40,12 +42,21 @@ export default function StockPage() {
   };
 
   async function toggleActive(p) {
-    if (p.active && !confirm(`¿Desactivar "${p.name}"? Dejará de aparecer en ventas.`)) return;
+    if (
+      p.active &&
+      !(await dialog.confirm({
+        title: `¿Desactivar "${p.name}"?`,
+        message: 'Dejará de aparecer en ventas. Podés volver a activarlo cuando quieras.',
+        confirmLabel: 'Desactivar',
+        danger: true,
+      }))
+    )
+      return;
     try {
       await moduleApi(module, `/products/${p.id}`, { method: 'PUT', body: { active: !p.active } });
       refresh();
     } catch (err) {
-      alert(err.message);
+      dialog.alert({ title: 'No se pudo actualizar el producto', message: err.message, danger: true });
     }
   }
 

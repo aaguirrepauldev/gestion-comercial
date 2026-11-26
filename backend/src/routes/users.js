@@ -72,7 +72,7 @@ router.put('/:id', (req, res) => {
   );
   if (body.password) {
     // Cierra las sesiones abiertas de ese usuario con la contraseña anterior.
-    db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?').run(
+    db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, token_version = token_version + 1 WHERE id = ?').run(
       bcrypt.hashSync(String(body.password), 10), id
     );
   }

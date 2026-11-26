@@ -17,6 +17,7 @@ Todos los negocios comparten la misma API y la misma base, pero cada uno ve solo
 - **Vencimiento**: hasta `GRACE_DAYS` días después de vencer (3 por defecto) todo sigue funcionando con un aviso. Después el negocio queda en **solo lectura**: puede ver sus datos pero cualquier cambio responde `402`. Un negocio **suspendido** no puede entrar. "Vencido" no se guarda: se calcula con la fecha, así no hace falta ninguna tarea programada.
 - **Pago por transferencia**: el cliente ve en **Mi suscripción** los datos de `DATOS_TRANSFERENCIA`. Cuando llega la transferencia, el superadmin la registra en **Plataforma → negocio → Registrar pago**: queda en la tabla `pagos` y el vencimiento se extiende N meses desde el vencimiento actual (o desde hoy si ya había vencido).
 - **Superadmin**: un usuario sin negocio que solo ve el panel **Plataforma** (todos los negocios, estado, último pago, última venta, alta manual, suspender, corregir vencimiento) y es el único que descarga la copia completa de la base. Se crea al arrancar si está definida `SUPERADMIN_PASSWORD`.
+- **Usuarios y contraseñas olvidadas**: en **Plataforma → negocio → Usuarios** el superadmin ve todos los usuarios del negocio (rol, activo) y puede **blanquear la clave** de cualquiera: se genera una contraseña temporal que se muestra una sola vez, se cierran las sesiones abiertas de ese usuario y, al entrar con la temporal, tiene que elegir una nueva antes de usar la app. Cada blanqueo queda en el log del servidor.
 - Los nombres de usuario son únicos en toda la plataforma (el login no pide el negocio).
 
 Mercado Pago queda para más adelante: la tabla `pagos` ya tiene `metodo` y `external_id`, y `registrarPago()` en `routes/plataforma.js` es la función que llamaría un webhook.
@@ -95,7 +96,7 @@ Los tres primeros son del "Negocio de ejemplo", activo por 30 días.
 - **Caja**: apertura con monto inicial, ingresos/retiros de efectivo, resumen por medio de pago, cierre con efectivo contado y cálculo de diferencia, historial de cierres con detalle.
 - **Usuarios** (admin): alta, edición, roles (`admin` / `vendedor`), módulos habilitados, desactivación y cambio de contraseña. Solo los del propio negocio.
 - **Mi suscripción** (admin): estado, vencimiento, datos para transferir y pagos registrados.
-- **Plataforma** (superadmin): negocios, alta manual, registrar pagos, suspender/reactivar, copia de la base.
+- **Plataforma** (superadmin): negocios, alta manual, registrar pagos, suspender/reactivar, usuarios de cada negocio y blanqueo de claves, copia de la base.
 - **Inicio**: ventas del día, estado de caja, stock bajo, valor del inventario, últimos 7 días y más vendidos.
 
 ## Estructura

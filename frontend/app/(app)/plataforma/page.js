@@ -9,6 +9,7 @@ import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
 import { negocioLink } from '@/lib/negocio';
 import { useDialog } from '@/components/ConfirmDialog';
+import PasswordInput from '@/components/PasswordInput';
 
 const FILTERS = {
   todos: { label: 'Todos', test: () => true },
@@ -615,7 +616,7 @@ function NuevoNegocio({ onClose, onSaved }) {
         </label>
         <label className="span-2">
           Contraseña inicial
-          <input type="password" value={form.admin.password} onChange={setAdmin('password')} required minLength={8} />
+          <PasswordInput value={form.admin.password} onChange={setAdmin('password')} required minLength={8} />
         </label>
         <p className="span-2 small muted">Arranca en prueba gratis. Después registrás el pago desde el detalle.</p>
         {error && <div className="alert error span-2">{error}</div>}
@@ -650,7 +651,7 @@ function CambiarPassword({ onClose }) {
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
           Nueva contraseña
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
+          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
         </label>
         {error && <div className="alert error span-2">{error}</div>}
         <div className="span-2 form-actions">

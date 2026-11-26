@@ -8,6 +8,7 @@ import { homePath, useAuth } from '@/lib/auth';
 import { MODULES } from '@/lib/constants';
 import { negocioLink, slugify } from '@/lib/negocio';
 import { useDebounced } from '@/lib/useDebounced';
+import PasswordInput from '@/components/PasswordInput';
 
 // Alta de un negocio nuevo con prueba gratis. Crea el negocio y su usuario administrador.
 export default function RegistroPage() {
@@ -144,7 +145,7 @@ export default function RegistroPage() {
             </label>
             <label>
               Contraseña
-              <input type="password" value={form.password} onChange={set('password')} required minLength={8} />
+              <PasswordInput value={form.password} onChange={set('password')} required minLength={8} />
             </label>
             {error && <div className="alert error">{error}</div>}
             <button className="btn primary block" disabled={busy}>

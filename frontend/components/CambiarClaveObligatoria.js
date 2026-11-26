@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import PasswordInput from '@/components/PasswordInput';
 
 // Pantalla que aparece al entrar con una contraseña blanqueada por el administrador de la plataforma.
 export default function CambiarClaveObligatoria() {
@@ -33,15 +34,15 @@ export default function CambiarClaveObligatoria() {
         </p>
         <label>
           Contraseña temporal
-          <input type="password" value={form.actual} onChange={set('actual')} required autoFocus />
+          <PasswordInput value={form.actual} onChange={set('actual')} required autoFocus />
         </label>
         <label>
           Contraseña nueva
-          <input type="password" value={form.nueva} onChange={set('nueva')} required minLength={8} />
+          <PasswordInput value={form.nueva} onChange={set('nueva')} required minLength={8} />
         </label>
         <label>
           Repetir contraseña nueva
-          <input type="password" value={form.repetir} onChange={set('repetir')} required minLength={8} />
+          <PasswordInput value={form.repetir} onChange={set('repetir')} required minLength={8} />
         </label>
         {error && <div className="alert error">{error}</div>}
         <button className="btn primary block" disabled={busy}>

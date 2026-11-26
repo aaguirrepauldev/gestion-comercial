@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { homePath, useAuth } from '@/lib/auth';
 import { getSavedNegocio, saveNegocio } from '@/lib/negocio';
+import PasswordInput from '@/components/PasswordInput';
 
 // Los usuarios son únicos dentro de cada negocio, así que para entrar hace falta saber de qué negocio.
 // Llega por el link del negocio (tuapp.com/libreria-centro → /login/?negocio=libreria-centro), queda
@@ -108,8 +109,7 @@ export default function LoginPage() {
         </label>
         <label>
           Contraseña
-          <input
-            type="password"
+          <PasswordInput
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             required

@@ -57,7 +57,7 @@ export default function CajaPage() {
             <tbody>
               {(history.data ?? []).map((s) => (
                 <tr key={s.id} onClick={async () => setDetail(await moduleApi(module, `/cash/${s.id}`))}>
-                  <td>{s.id}</td>
+                  <td>{s.numero}</td>
                   <td>{dateTime(s.opened_at)}</td>
                   <td>{dateTime(s.closed_at)}</td>
                   <td>{s.closed_by_name}</td>
@@ -220,7 +220,7 @@ function OpenSession({ module, session, onChange }) {
     <section className="grid-2">
       <div className="card">
         <h2>
-          Caja #{session.id} <span className="badge ok">abierta</span>
+          Caja #{session.numero} <span className="badge ok">abierta</span>
         </h2>
         <p className="muted small">
           Abierta por {session.opened_by_name} el {dateTime(session.opened_at)}
@@ -304,7 +304,7 @@ function OpenSession({ module, session, onChange }) {
 function SessionDetail({ module, session, onClose }) {
   const sales = useLoad(() => moduleApi(module, `/sales?session_id=${session.id}`), [module, session.id]);
   return (
-    <Modal title={`Caja #${session.id}`} onClose={onClose} wide>
+    <Modal title={`Caja #${session.numero}`} onClose={onClose} wide>
       <p className="muted small">
         Abierta por {session.opened_by_name} ({dateTime(session.opened_at)}) · Cerrada por {session.closed_by_name} (
         {dateTime(session.closed_at)})

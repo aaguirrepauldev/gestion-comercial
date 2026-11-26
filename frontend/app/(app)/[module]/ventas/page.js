@@ -99,7 +99,7 @@ export default function VentasPage() {
         body: { payment_method: payment, items: lines.map((l) => ({ product_id: l.product.id, qty: l.n })) },
       });
       setCart([]);
-      setMessage({ type: 'ok', text: `Venta #${sale.id} registrada por ${money(sale.total)}`, sale });
+      setMessage({ type: 'ok', text: `Venta #${sale.numero} registrada por ${money(sale.total)}`, sale });
       if (autoPrint) setPrinting(sale);
       products.reload();
       sales.reload();
@@ -112,7 +112,7 @@ export default function VentasPage() {
 
   async function cancelSale(sale) {
     const ok = await dialog.confirm({
-      title: `¿Anular la venta #${sale.id}?`,
+      title: `¿Anular la venta #${sale.numero}?`,
       message: `Se anula la venta por ${money(sale.total)} y se repone el stock.`,
       confirmLabel: 'Anular venta',
       danger: true,
@@ -267,7 +267,7 @@ export default function VentasPage() {
       </section>
 
       {detail && (
-        <Modal title={`Venta #${detail.id}`} onClose={() => setDetail(null)}>
+        <Modal title={`Venta #${detail.numero}`} onClose={() => setDetail(null)}>
           <p className="muted">
             {time(detail.created_at)} · {detail.user_name} · {PAYMENT_METHODS[detail.payment_method]}
             {detail.status === 'anulada' && <span className="badge danger"> Anulada por {detail.cancelled_by_name}</span>}

@@ -32,7 +32,7 @@ export default function Receipt({ module, sale, onDone }) {
       </div>
       <hr />
       <div className="receipt-row">
-        <span>Venta #{sale.id}</span>
+        <span>Venta #{sale.numero}</span>
         <span>{dateTime(sale.created_at)}</span>
       </div>
       <div>Atendió: {sale.user_name}</div>

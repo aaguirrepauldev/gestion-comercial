@@ -3,7 +3,7 @@ import path from 'node:path';
 import express, { Router } from 'express';
 import cors from 'cors';
 import { CORS_ORIGIN, TRUST_PROXY, WEB_DIR } from './config.js';
-import './db.js';
+import { db } from './db.js';
 import { requireAdmin, requireAuth, requireModule, requireNegocio, requireSuperadmin, requireWritable } from './auth.js';
 import { HttpError } from './util.js';
 import authRoutes from './routes/auth.js';
@@ -51,12 +51,20 @@ app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Ruta no encontrad
 // La web compilada (frontend/out), si existe: así API y web corren como un solo servicio.
 if (fs.existsSync(WEB_DIR)) {
   app.use(express.static(WEB_DIR));
+  // Link propio de cada negocio (tuapp.com/libreria-centro): abre el login con el negocio ya elegido.
+  app.get('/:slug', (req, res, next) => {
+    const slug = req.params.slug.toLowerCase();
+    if (!db.prepare('SELECT 1 FROM negocios WHERE slug = ?').get(slug)) return next();
+    res.redirect(302, `/login/?negocio=${encodeURIComponent(slug)}`);
+  });
   app.use((_req, res) => res.status(404).sendFile(path.join(WEB_DIR, '404.html')));
 }
 app.use((_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')));
 
 app.use((err, _req, res, _next) => {
-  if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+  if (err instanceof HttpError) {
+    return res.status(err.status).json({ error: err.message, ...(err.sugerencia && { sugerencia: err.sugerencia }) });
+  }
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'JSON inválido' });
   if (/UNIQUE constraint failed/.test(err.message)) {
     return res.status(409).json({ error: 'Ya existe un registro con ese código o nombre de usuario' });

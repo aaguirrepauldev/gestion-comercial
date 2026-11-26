@@ -1,3 +1,5 @@
+import { freeSlug } from './slug.js';
+
 // Migraciones del esquema. Cada una corre una sola vez y en orden; el número de la última
 // aplicada queda en PRAGMA user_version de la base.
 //
@@ -243,6 +245,45 @@ export const migrations = [
       UPDATE stock_movements
       SET note = 'Anulación venta #' || (SELECT numero FROM sales WHERE sales.id = stock_movements.sale_id)
       WHERE type = 'anulacion' AND sale_id IS NOT NULL AND note = 'Anulación venta #' || sale_id;
+      `);
+    },
+  },
+  {
+    // Usuarios únicos por negocio: dos negocios pueden tener cada uno su usuario "venta". Para saber a qué
+    // negocio se entra, cada uno tiene un código único (slug) que va en su link: tuapp.com/libreria-centro.
+    // Los negocios existentes reciben uno a partir de su nombre. La tabla de usuarios se reconstruye para
+    // quitar el UNIQUE de username (se copian sus columnas, índices y triggers tal como estén).
+    name: 'usuarios únicos por negocio y código de negocio',
+    foreignKeysOff: true,
+    up: (db) => {
+      db.exec('ALTER TABLE negocios ADD COLUMN slug TEXT');
+      const taken = new Set();
+      for (const { id, nombre } of db.prepare('SELECT id, nombre FROM negocios ORDER BY id').all()) {
+        const slug = freeSlug(nombre, (s) => taken.has(s));
+        taken.add(slug);
+        db.prepare('UPDATE negocios SET slug = ? WHERE id = ?').run(slug, id);
+      }
+      db.exec(`
+      CREATE UNIQUE INDEX ux_negocios_slug ON negocios(slug);
+      CREATE TRIGGER negocios_slug_obligatorio BEFORE INSERT ON negocios
+        WHEN NEW.slug IS NULL OR NEW.slug = ''
+        BEGIN SELECT RAISE(ABORT, 'negocios.slug es obligatorio'); END;
+      `);
+
+      const { sql } = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get();
+      const sinUnique = sql.replace(/(\busername\s+TEXT\s+NOT\s+NULL)\s+UNIQUE\b/i, '$1');
+      if (sinUnique === sql) throw new Error('No se encontró el UNIQUE de users.username');
+      const extras = db
+        .prepare("SELECT sql FROM sqlite_master WHERE type IN ('index', 'trigger') AND tbl_name = 'users' AND sql IS NOT NULL")
+        .all()
+        .map((r) => r.sql);
+      db.exec(sinUnique.replace(/^CREATE TABLE\s+("?\w+"?)/i, 'CREATE TABLE users_por_negocio'));
+      db.exec('INSERT INTO users_por_negocio SELECT * FROM users; DROP TABLE users; ALTER TABLE users_por_negocio RENAME TO users;');
+      for (const extra of extras) db.exec(extra);
+      db.exec(`
+      CREATE UNIQUE INDEX ux_users_negocio_username ON users(negocio_id, username) WHERE negocio_id IS NOT NULL;
+      -- Los superadmins no tienen negocio: entre ellos el usuario sigue siendo único.
+      CREATE UNIQUE INDEX ux_users_superadmin_username ON users(username) WHERE negocio_id IS NULL;
       `);
     },
   },

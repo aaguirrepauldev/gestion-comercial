@@ -6,7 +6,7 @@ import { signToken } from '../auth.js';
 import { NEGOCIO_ESTADOS } from '../config.js';
 import { HttpError, round2, toNumber } from '../util.js';
 import { addMonths, todayLocal } from '../time.js';
-import { checkPassword, checkTrialModules, createNegocio, getNegocio, isDay, negocioStatus, parseModules } from '../negocios.js';
+import { checkPassword, checkSlug, checkTrialModules, createNegocio, getNegocio, isDay, negocioStatus, parseModules } from '../negocios.js';
 
 // Panel del dueño de la plataforma (solo superadmin): todos los negocios, sus suscripciones y pagos.
 const router = Router();
@@ -57,9 +57,9 @@ router.get('/negocios/:id', (req, res) => {
 
 // Alta manual (por ejemplo, un cliente que se sumó por teléfono). Mismo flujo que el registro público.
 router.post('/negocios', (req, res) => {
-  const { nombre, modules, contacto, admin, vence_el } = req.body ?? {};
+  const { nombre, slug, modules, contacto, admin, vence_el } = req.body ?? {};
   if (vence_el !== undefined && vence_el !== null && !isDay(vence_el)) throw new HttpError(400, 'Fecha de vencimiento inválida');
-  const { negocioId } = createNegocio({ nombre, modules, contacto, admin, vence_el });
+  const { negocioId } = createNegocio({ nombre, slug, modules, contacto, admin, vence_el });
   res.status(201).json(negocioDetail(getNegocio(negocioId)));
 });
 
@@ -76,14 +76,16 @@ router.put('/negocios/:id', (req, res) => {
     if (body.vence_el !== null && body.vence_el !== '' && !isDay(body.vence_el)) throw new HttpError(400, 'Fecha de vencimiento inválida');
     venceEl = body.vence_el || null;
   }
+  // El código cambia el link de entrada del negocio: el anterior deja de funcionar.
+  const slug = body.slug !== undefined && body.slug !== row.slug ? checkSlug(body.slug, { exceptId: row.id }) : row.slug;
   const modules = body.modules !== undefined ? parseModules(body.modules) : row.modules;
   // Solo se valida si cambian los rubros o el estado, para no trabar la edición de negocios viejos.
   if (body.modules !== undefined || body.estado !== undefined) checkTrialModules(estado, modules);
   const text = (key) => (body[key] !== undefined ? String(body[key] ?? '').trim() || null : row[key]);
 
   db.prepare(
-    'UPDATE negocios SET nombre = ?, estado = ?, vence_el = ?, modules = ?, plan = ?, contacto = ?, notas = ? WHERE id = ?'
-  ).run(nombre, estado, venceEl, modules, text('plan') ?? row.plan, text('contacto'), text('notas'), row.id);
+    'UPDATE negocios SET nombre = ?, slug = ?, estado = ?, vence_el = ?, modules = ?, plan = ?, contacto = ?, notas = ? WHERE id = ?'
+  ).run(nombre, slug, estado, venceEl, modules, text('plan') ?? row.plan, text('contacto'), text('notas'), row.id);
   res.json(negocioDetail(getNegocio(row.id)));
 });
 

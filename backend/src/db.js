@@ -98,7 +98,7 @@ function seedIfEmpty() {
     }
     tx(() => {
       db.prepare(
-        "INSERT INTO negocios (id, nombre, modules, estado, vence_el, created_at) VALUES (1, 'Negocio principal', 'libreria,avicola', 'activo', NULL, now_local())"
+        "INSERT INTO negocios (id, nombre, slug, modules, estado, vence_el, created_at) VALUES (1, 'Negocio principal', 'principal', 'libreria,avicola', 'activo', NULL, now_local())"
       ).run();
       db.prepare(
         "INSERT INTO users (negocio_id, username, password_hash, name, role, modules, created_at) VALUES (1, 'admin', ?, 'Administrador', 'admin', 'libreria,avicola', now_local())"
@@ -111,7 +111,7 @@ function seedIfEmpty() {
   tx(() => {
     // Negocio de ejemplo con suscripción activa por 30 días.
     db.prepare(
-      "INSERT INTO negocios (id, nombre, modules, estado, vence_el, created_at) VALUES (1, 'Negocio de ejemplo', 'libreria,avicola', 'activo', ?, now_local())"
+      "INSERT INTO negocios (id, nombre, slug, modules, estado, vence_el, created_at) VALUES (1, 'Negocio de ejemplo', 'demo', 'libreria,avicola', 'activo', ?, now_local())"
     ).run(addDays(todayLocal(), 30));
     const insertUser = db.prepare(
       'INSERT INTO users (negocio_id, username, password_hash, name, role, modules, created_at) VALUES (1, ?, ?, ?, ?, ?, now_local())'
@@ -168,10 +168,6 @@ function ensureSuperadmin() {
   if (db.prepare('SELECT 1 FROM users WHERE superadmin = 1').get()) return;
   if (SUPERADMIN_PASSWORD.length < MIN_PASSWORD_LENGTH) {
     throw new Error(`SUPERADMIN_PASSWORD debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
-  }
-  if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(SUPERADMIN_USERNAME)) {
-    console.error(`No se creó el superadmin: ya existe un usuario "${SUPERADMIN_USERNAME}". Definí otro SUPERADMIN_USERNAME.`);
-    return;
   }
   db.prepare(
     "INSERT INTO users (negocio_id, superadmin, username, password_hash, name, role, created_at) VALUES (NULL, 1, ?, ?, 'Dueño de la plataforma', 'admin', now_local())"

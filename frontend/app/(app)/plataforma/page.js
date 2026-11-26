@@ -7,6 +7,7 @@ import { ESTADOS_NEGOCIO, MODULES, TRIAL_MAX_MODULES } from '@/lib/constants';
 import { dateTime, day, money } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import { useDialog } from '@/components/ConfirmDialog';
 
 const FILTERS = {
   todos: { label: 'Todos', test: () => true },
@@ -184,6 +185,7 @@ function NegocioDetail({ id, onClose, onChanged }) {
   const detail = useLoad(() => api(`/plataforma/negocios/${id}`), [id]);
   const [tab, setTab] = useState('pago');
   const [suspendError, setSuspendError] = useState('');
+  const dialog = useDialog();
   const n = detail.data;
 
   const changed = () => {
@@ -195,7 +197,16 @@ function NegocioDetail({ id, onClose, onChanged }) {
   // o a prueba si todavía no pagó nunca.
   async function toggleSuspend() {
     const suspended = n.estado === 'suspendido';
-    if (!suspended && !window.confirm(`¿Suspender "${n.nombre}"? Nadie del negocio va a poder entrar hasta que lo reactives.`)) return;
+    if (
+      !suspended &&
+      !(await dialog.confirm({
+        title: `¿Suspender "${n.nombre}"?`,
+        message: 'Nadie del negocio va a poder entrar hasta que lo reactives. Los datos se conservan.',
+        confirmLabel: 'Suspender',
+        danger: true,
+      }))
+    )
+      return;
     setSuspendError('');
     try {
       const estado = suspended ? (n.pagos.length > 0 ? 'activo' : 'prueba') : 'suspendido';

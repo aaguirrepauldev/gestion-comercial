@@ -9,10 +9,12 @@ import { PAYMENT_METHODS } from '@/lib/constants';
 import { money, qty, time } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
+import { useDialog } from '@/components/ConfirmDialog';
 import Receipt from '@/components/Receipt';
 import SalesTable from '@/components/SalesTable';
 
 export default function VentasPage() {
+  const dialog = useDialog();
   const { module } = useParams();
   const { user } = useAuth();
   const products = useLoad(() => moduleApi(module, '/products'), [module]);
@@ -109,14 +111,20 @@ export default function VentasPage() {
   }
 
   async function cancelSale(sale) {
-    if (!confirm(`¿Anular la venta #${sale.id} por ${money(sale.total)}? Se repondrá el stock.`)) return;
+    const ok = await dialog.confirm({
+      title: `¿Anular la venta #${sale.id}?`,
+      message: `Se anula la venta por ${money(sale.total)} y se repone el stock.`,
+      confirmLabel: 'Anular venta',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await moduleApi(module, `/sales/${sale.id}/cancel`, { method: 'POST' });
       setDetail(null);
       sales.reload();
       products.reload();
     } catch (err) {
-      alert(err.message);
+      dialog.alert({ title: 'No se pudo anular la venta', message: err.message, danger: true });
     }
   }
 

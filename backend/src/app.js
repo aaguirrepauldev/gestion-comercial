@@ -37,7 +37,7 @@ app.use('/api/suscripcion', requireAuth, requireNegocio, suscripcionRoutes);
 app.use('/api/plataforma', requireAuth, requireSuperadmin, plataformaRoutes);
 app.use('/api/backup', requireAuth, requireSuperadmin, backupRoutes);
 
-// Todo lo que es propio de un rubro del negocio cuelga de /api/modules/:module (libreria | avicola)
+// Todo lo que es propio de un rubro del negocio cuelga de /api/modules/:module (libreria, avicola, almacen… ver MODULES en config.js)
 const moduleRouter = Router({ mergeParams: true });
 moduleRouter.use(...tenant, requireModule);
 moduleRouter.use('/dashboard', dashboardRoutes);

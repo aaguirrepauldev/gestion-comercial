@@ -195,4 +195,25 @@ export const migrations = [
       }
     },
   },
+  {
+    // Más rubros: el CHECK (module IN ('libreria','avicola')) de productos, cajas y ventas no deja guardar
+    // los nuevos. Se reconstruyen las tablas sin ese CHECK; qué rubros existen lo valida la API (MODULES en config.js).
+    name: 'rubros sin lista fija en la base',
+    foreignKeysOff: true,
+    up: (db) => {
+      for (const table of ['products', 'cash_sessions', 'sales']) {
+        const { sql } = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+        const sinCheck = sql.replace(/\s*CHECK\s*\(\s*module\s+IN\s*\([^)]*\)\s*\)/i, '');
+        if (sinCheck === sql) continue;
+        const indexes = db
+          .prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL")
+          .all(table)
+          .map((r) => r.sql);
+        const tmp = `${table}_rubros`;
+        db.exec(sinCheck.replace(/^CREATE TABLE\s+("?\w+"?)/i, `CREATE TABLE ${tmp}`));
+        db.exec(`INSERT INTO ${tmp} SELECT * FROM ${table}; DROP TABLE ${table}; ALTER TABLE ${tmp} RENAME TO ${table};`);
+        for (const index of indexes) db.exec(index);
+      }
+    },
+  },
 ];

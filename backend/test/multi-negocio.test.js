@@ -293,9 +293,51 @@ describe('migración de una base existente', () => {
       db.exec('PRAGMA foreign_keys = ON');
       assert.throws(() => db.exec("INSERT INTO sales (module, session_id, user_id, total, payment_method) VALUES ('libreria', 1, 1, 1, 'efectivo')"));
       assert.throws(() => db.exec("INSERT INTO users (username, password_hash, name, role) VALUES ('x', 'x', 'x', 'admin')"));
+      // Los rubros nuevos se pueden guardar y los índices se conservan.
+      db.exec("INSERT INTO products (negocio_id, module, name, price) VALUES (1, 'kiosco', 'Alfajor', 900)");
+      const indices = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL").all().map((r) => r.name);
+      for (const name of ['ux_cash_open', 'ix_sales_negocio_date']) assert.ok(indices.includes(name), name);
+      assert.throws(() => db.exec("INSERT INTO cash_sessions (negocio_id, module, opened_by) VALUES (1, 'libreria', 1), (1, 'libreria', 1)"));
     } finally {
       db.close();
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('rubros', () => {
+  test('en la prueba gratis se elige un solo rubro', async () => {
+    const res = await registrar({ username: 'dos.rubros', modules: ['libreria', 'kiosco'] });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /un solo rubro/);
+  });
+
+  test('se puede registrar un negocio de un rubro nuevo y usarlo', async () => {
+    const res = await registrar({ negocio: 'Verdulería Don Tito', username: 'tito', modules: ['verduleria'] });
+    assert.equal(res.status, 201);
+    const token = res.body.token;
+    assert.deepEqual(res.body.user.modules, ['verduleria']);
+    const prod = await api.request('POST', '/modules/verduleria/products', {
+      token,
+      body: { name: 'Papa', unit: 'kg', price: 1100, stock: 50 },
+    });
+    assert.equal(prod.status, 201);
+    assert.equal((await api.request('POST', '/modules/verduleria/cash/open', { token, body: {} })).status, 201);
+    const venta = await api.request('POST', '/modules/verduleria/sales', {
+      token,
+      body: { items: [{ product_id: prod.body.id, qty: 1.5 }], payment_method: 'efectivo' },
+    });
+    assert.equal(venta.status, 201, JSON.stringify(venta.body));
+    assert.equal((await api.request('GET', '/modules/kiosco/products', { token })).status, 403);
+  });
+
+  test('el superadmin habilita más rubros solo con el negocio activo', async () => {
+    const id = (await registrar({ negocio: 'Kiosco Sol', username: 'sol', modules: ['kiosco'] })).body.user.negocio.id;
+    assert.equal((await setNegocio(id, { modules: ['kiosco', 'libreria'] })).status, 400);
+    const ok = await setNegocio(id, { estado: 'activo', modules: ['kiosco', 'libreria'] });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(ok.body.modules, ['libreria', 'kiosco']);
+    // Volver a prueba con dos rubros no se permite.
+    assert.equal((await setNegocio(id, { estado: 'prueba' })).status, 400);
   });
 });

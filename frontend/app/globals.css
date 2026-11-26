@@ -83,6 +83,8 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 input:disabled { background: #f3f4f6; }
 fieldset { border: 1px solid var(--border); border-radius: 8px; display: flex; gap: 18px; flex-wrap: wrap; }
 legend { font-size: 13px; font-weight: 500; padding: 0 4px; }
+fieldset.rubros { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; }
+fieldset.rubros .span-all { grid-column: 1 / -1; margin: 4px 0 0; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .span-2 { grid-column: span 2; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; }

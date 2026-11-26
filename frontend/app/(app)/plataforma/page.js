@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { api, download, setToken } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { ESTADOS_NEGOCIO, MODULES } from '@/lib/constants';
+import { ESTADOS_NEGOCIO, MODULES, TRIAL_MAX_MODULES } from '@/lib/constants';
 import { dateTime, day, money } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
@@ -19,6 +19,12 @@ const FILTERS = {
   vencidos: { label: 'Vencidos', test: (n) => ['gracia', 'vencido'].includes(n.estado) },
   suspendido: { label: 'Suspendidos', test: (n) => n.estado === 'suspendido' },
 };
+
+// En prueba, elegir un rubro reemplaza al anterior (se permite uno solo); si no, se suman o se quitan.
+function toggleRubro(modules, m, enPrueba) {
+  if (modules.includes(m)) return modules.filter((x) => x !== m);
+  return enPrueba ? [...modules, m].slice(-TRIAL_MAX_MODULES) : [...modules, m];
+}
 
 const EMPTY_NEGOCIO = { nombre: '', modules: [], contacto: '', admin: { name: '', username: '', password: '' } };
 
@@ -312,8 +318,8 @@ function EditarNegocio({ negocio, onSaved }) {
   });
   const [msg, setMsg] = useState({ error: '', ok: '' });
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-  const toggleModule = (m) =>
-    setForm((f) => ({ ...f, modules: f.modules.includes(m) ? f.modules.filter((x) => x !== m) : [...f.modules, m] }));
+  const enPrueba = form.estado === 'prueba';
+  const toggleModule = (m) => setForm((f) => ({ ...f, modules: toggleRubro(f.modules, m, f.estado === 'prueba') }));
 
   async function submit(e) {
     e.preventDefault();
@@ -350,7 +356,7 @@ function EditarNegocio({ negocio, onSaved }) {
         <input type="date" value={form.vence_el} onChange={set('vence_el')} />
         <span className="small muted">Vacío = sin vencimiento</span>
       </label>
-      <fieldset className="span-2">
+      <fieldset className="span-2 rubros">
         <legend>Rubros</legend>
         {Object.values(MODULES).map((m) => (
           <label key={m.id} className="check">
@@ -358,6 +364,9 @@ function EditarNegocio({ negocio, onSaved }) {
             {m.name}
           </label>
         ))}
+        {enPrueba && (
+          <p className="small muted span-all">En prueba se permite un solo rubro. Pasalo a Activo para habilitar varios.</p>
+        )}
       </fieldset>
       <label className="span-2">
         Notas internas
@@ -409,8 +418,7 @@ function NuevoNegocio({ onClose, onSaved }) {
   const [error, setError] = useState('');
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   const setAdmin = (key) => (e) => setForm({ ...form, admin: { ...form.admin, [key]: e.target.value } });
-  const toggleModule = (m) =>
-    setForm((f) => ({ ...f, modules: f.modules.includes(m) ? f.modules.filter((x) => x !== m) : [...f.modules, m] }));
+  const toggleModule = (m) => setForm((f) => ({ ...f, modules: toggleRubro(f.modules, m, true) }));
 
   async function submit(e) {
     e.preventDefault();
@@ -429,7 +437,7 @@ function NuevoNegocio({ onClose, onSaved }) {
           Nombre del negocio
           <input value={form.nombre} onChange={set('nombre')} required autoFocus />
         </label>
-        <fieldset className="span-2">
+        <fieldset className="span-2 rubros">
           <legend>Rubros</legend>
           {Object.values(MODULES).map((m) => (
             <label key={m.id} className="check">
@@ -437,6 +445,7 @@ function NuevoNegocio({ onClose, onSaved }) {
               {m.name}
             </label>
           ))}
+          <p className="small muted span-all">Arranca en prueba con un solo rubro. Al pasarlo a Activo se pueden sumar más.</p>
         </fieldset>
         <label className="span-2">
           Contacto

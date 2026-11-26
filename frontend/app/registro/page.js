@@ -25,12 +25,12 @@ export default function RegistroPage() {
   }, []);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-  const toggleModule = (m) =>
-    setForm((f) => ({ ...f, modules: f.modules.includes(m) ? f.modules.filter((x) => x !== m) : [...f.modules, m] }));
+  // En la prueba gratis se elige un solo rubro; con el plan pago se pueden sumar más.
+  const pickModule = (m) => setForm((f) => ({ ...f, modules: [m] }));
 
   async function submit(e) {
     e.preventDefault();
-    if (form.modules.length === 0) return setError('Elegí al menos un rubro.');
+    if (form.modules.length === 0) return setError('Elegí el rubro de tu negocio.');
     setBusy(true);
     setError('');
     try {
@@ -56,14 +56,22 @@ export default function RegistroPage() {
               Nombre del negocio
               <input autoFocus value={form.negocio} onChange={set('negocio')} required maxLength={80} />
             </label>
-            <fieldset>
-              <legend>¿Qué vendés?</legend>
+            <fieldset className="rubros">
+              <legend>¿Qué tipo de negocio tenés?</legend>
               {Object.values(MODULES).map((m) => (
                 <label key={m.id} className="check">
-                  <input type="checkbox" checked={form.modules.includes(m.id)} onChange={() => toggleModule(m.id)} /> {m.icon}{' '}
-                  {m.name}
+                  <input
+                    type="radio"
+                    name="rubro"
+                    checked={form.modules.includes(m.id)}
+                    onChange={() => pickModule(m.id)}
+                  />{' '}
+                  {m.icon} {m.name}
                 </label>
               ))}
+              <p className="small muted span-all">
+                En la prueba gratis usás un rubro. Con el plan pago podés sumar más (por ejemplo, librería y kiosco).
+              </p>
             </fieldset>
             <label>
               Tu nombre

@@ -1,19 +1,24 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { api, download, setToken } from '@/lib/api';
+import { api, download } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { ESTADOS_NEGOCIO, MODULES, TRIAL_MAX_MODULES } from '@/lib/constants';
-import { dateTime, day, money } from '@/lib/format';
+import { ago, dateTime, day, money } from '@/lib/format';
 import { useLoad } from '@/lib/useLoad';
 import Modal from '@/components/Modal';
 import { negocioLink } from '@/lib/negocio';
 import { useDialog } from '@/components/ConfirmDialog';
 import PasswordInput from '@/components/PasswordInput';
 
+// Pruebas gratis a las que les quedan pocos días: es el momento de llamar para ofrecer el plan pago.
+const PRUEBA_POR_TERMINAR_DIAS = 3;
+const pruebaPorTerminar = (n) => n.estado === 'prueba' && n.dias_restantes !== null && n.dias_restantes <= PRUEBA_POR_TERMINAR_DIAS;
+
 const FILTERS = {
   todos: { label: 'Todos', test: () => true },
   prueba: { label: 'En prueba', test: (n) => n.estado === 'prueba' },
+  prueba_por_terminar: { label: `Prueba termina en ${PRUEBA_POR_TERMINAR_DIAS} días`, test: pruebaPorTerminar },
   activo: { label: 'Activos', test: (n) => n.estado === 'activo' },
   por_vencer: {
     label: 'Vencen en 7 días',
@@ -86,6 +91,9 @@ export default function PlataformaPage() {
         <div className="card stat">
           <span className="muted">En prueba</span>
           <strong>{count('prueba')}</strong>
+          <span className={`small ${count('prueba_por_terminar') > 0 ? 'warn' : 'muted'}`}>
+            {count('prueba_por_terminar')} {count('prueba_por_terminar') === 1 ? 'termina' : 'terminan'} en {PRUEBA_POR_TERMINAR_DIAS} días
+          </span>
         </div>
         <div className="card stat">
           <span className="muted">Vencidos</span>
@@ -117,12 +125,14 @@ export default function PlataformaPage() {
                 <th>Estado</th>
                 <th>Vence</th>
                 <th>Último pago</th>
-                <th>Última venta</th>
+                <th>Último ingreso</th>
+                <th>Ventas 7 días</th>
+                <th className="num">Prod. / usuarios</th>
               </tr>
             </thead>
             <tbody>
               {list.map((n) => (
-                <tr key={n.id} onClick={() => setSelected(n.id)}>
+                <tr key={n.id} onClick={() => setSelected(n.id)} className={pruebaPorTerminar(n) ? 'highlight' : undefined}>
                   <td>
                     <strong>{n.nombre}</strong>{' '}
                     <span className="muted">{n.modules.map((m) => MODULES[m]?.icon).join(' ')}</span>
@@ -132,6 +142,7 @@ export default function PlataformaPage() {
                   <td>{n.contacto ?? '—'}</td>
                   <td>
                     <EstadoBadge estado={n.estado} />
+                    {pruebaPorTerminar(n) && <div className="small warn">Termina la prueba</div>}
                   </td>
                   <td>
                     {n.vence_el ? day(n.vence_el) : 'Sin vencimiento'}
@@ -142,12 +153,27 @@ export default function PlataformaPage() {
                     )}
                   </td>
                   <td>{n.ultimo_pago ? `${day(n.ultimo_pago.fecha)} · ${money(n.ultimo_pago.monto)}` : '—'}</td>
-                  <td>{n.ultima_venta ? dateTime(n.ultima_venta) : '—'}</td>
+                  <td title={n.ultimo_ingreso ? dateTime(n.ultimo_ingreso) : 'Nadie entró todavía'}>
+                    <span className={inactivo(n.ultimo_ingreso) ? 'warn' : undefined}>{ago(n.ultimo_ingreso)}</span>
+                  </td>
+                  <td>
+                    {n.ventas_7d > 0 ? (
+                      <>
+                        {n.ventas_7d} · {money(n.total_7d)}
+                      </>
+                    ) : (
+                      <span className="muted">Sin ventas</span>
+                    )}
+                    {n.ventas_7d === 0 && n.ultima_venta && <div className="small muted">Última: {day(n.ultima_venta)}</div>}
+                  </td>
+                  <td className="num">
+                    {n.productos} / {n.usuarios}
+                  </td>
                 </tr>
               ))}
               {list.length === 0 && !negocios.loading && (
                 <tr>
-                  <td colSpan={7} className="muted">
+                  <td colSpan={9} className="muted">
                     No hay negocios en este filtro.
                   </td>
                 </tr>
@@ -177,6 +203,12 @@ export default function PlataformaPage() {
       {changingPassword && <CambiarPassword onClose={() => setChangingPassword(false)} />}
     </>
   );
+}
+
+// Nadie del negocio entró en la última semana (o nunca).
+function inactivo(ultimoIngreso) {
+  if (!ultimoIngreso) return true;
+  return Date.now() - new Date(ultimoIngreso.replace(' ', 'T')).getTime() > 7 * 86400000;
 }
 
 function EstadoBadge({ estado }) {
@@ -631,34 +663,69 @@ function NuevoNegocio({ onClose, onSaved }) {
   );
 }
 
+// Cambia la contraseña del superadmin en la base (no toca SUPERADMIN_PASSWORD, que solo se usa la primera vez).
+// Cierra las otras sesiones abiertas; esta sigue con un token nuevo.
 function CambiarPassword({ onClose }) {
-  const [password, setPassword] = useState('');
+  const { changePassword } = useAuth();
+  const [form, setForm] = useState({ actual: '', nueva: '', repetir: '' });
   const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
   async function submit(e) {
     e.preventDefault();
+    setError('');
+    if (form.nueva !== form.repetir) return setError('Las contraseñas nuevas no coinciden');
+    setBusy(true);
     try {
-      const { token } = await api('/plataforma/password', { method: 'PUT', body: { password } });
-      setToken(token);
-      onClose();
+      await changePassword(form.actual, form.nueva);
+      setDone(true);
     } catch (err) {
       setError(err.message);
     }
+    setBusy(false);
+  }
+
+  if (done) {
+    return (
+      <Modal title="Cambiar mi contraseña" onClose={onClose}>
+        <div className="alert ok">
+          Listo, tu contraseña nueva quedó guardada. La próxima vez entrá con ella. Las sesiones abiertas en otros
+          dispositivos se cerraron.
+        </div>
+        <div className="form-actions">
+          <button className="btn primary" onClick={onClose}>
+            Cerrar
+          </button>
+        </div>
+      </Modal>
+    );
   }
 
   return (
     <Modal title="Cambiar mi contraseña" onClose={onClose}>
       <form className="form-grid" onSubmit={submit}>
         <label className="span-2">
+          Contraseña actual
+          <PasswordInput value={form.actual} onChange={set('actual')} required autoFocus autoComplete="current-password" />
+        </label>
+        <label className="span-2">
           Nueva contraseña
-          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
+          <PasswordInput value={form.nueva} onChange={set('nueva')} required minLength={8} autoComplete="new-password" />
+        </label>
+        <label className="span-2">
+          Repetir la nueva
+          <PasswordInput value={form.repetir} onChange={set('repetir')} required minLength={8} autoComplete="new-password" />
         </label>
         {error && <div className="alert error span-2">{error}</div>}
         <div className="span-2 form-actions">
           <button type="button" className="btn ghost" onClick={onClose}>
             Cancelar
           </button>
-          <button className="btn primary">Guardar</button>
+          <button className="btn primary" disabled={busy}>
+            {busy ? 'Guardando…' : 'Guardar'}
+          </button>
         </div>
       </form>
     </Modal>

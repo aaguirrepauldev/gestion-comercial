@@ -287,4 +287,9 @@ export const migrations = [
       `);
     },
   },
+  {
+    // Para el panel de plataforma: cuándo entró por última vez cada usuario (actividad de cada negocio).
+    name: 'usuarios: último ingreso',
+    up: (db) => db.exec('ALTER TABLE users ADD COLUMN last_login_at TEXT'),
+  },
 ];

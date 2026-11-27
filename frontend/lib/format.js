@@ -16,3 +16,13 @@ export const shortDay = (day) =>
 
 // 'YYYY-MM-DD' → '25/11/2026'
 export const day = (s) => (s ? s.slice(0, 10).split('-').reverse().join('/') : '—');
+
+// 'YYYY-MM-DD HH:MM:SS' → 'hoy', 'ayer', 'hace 5 días'
+export function ago(s) {
+  if (!s) return 'nunca';
+  const start = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((start(new Date()) - start(toDate(s))) / 86400000);
+  if (days <= 0) return 'hoy';
+  if (days === 1) return 'ayer';
+  return `hace ${days} días`;
+}

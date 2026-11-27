@@ -2,11 +2,10 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { db, tx } from '../db.js';
-import { signToken } from '../auth.js';
 import { NEGOCIO_ESTADOS } from '../config.js';
 import { HttpError, round2, toNumber } from '../util.js';
 import { addMonths, todayLocal } from '../time.js';
-import { checkPassword, checkSlug, checkTrialModules, createNegocio, getNegocio, isDay, negocioStatus, parseModules } from '../negocios.js';
+import { checkSlug, checkTrialModules, createNegocio, getNegocio, isDay, negocioStatus, parseModules } from '../negocios.js';
 
 // Panel del dueño de la plataforma (solo superadmin): todos los negocios, sus suscripciones y pagos.
 const router = Router();
@@ -18,9 +17,14 @@ function negocioDetail(row) {
          (SELECT COUNT(*) FROM users WHERE negocio_id = ? AND active = 1) AS usuarios,
          (SELECT COUNT(*) FROM products WHERE negocio_id = ? AND active = 1) AS productos,
          (SELECT MAX(created_at) FROM sales WHERE negocio_id = ?) AS ultima_venta,
+         (SELECT MAX(last_login_at) FROM users WHERE negocio_id = ?) AS ultimo_ingreso,
+         (SELECT COUNT(*) FROM sales WHERE negocio_id = ? AND status = 'completada'
+            AND date(created_at) >= date(today_local(), '-6 days')) AS ventas_7d,
+         (SELECT COALESCE(SUM(total), 0) FROM sales WHERE negocio_id = ? AND status = 'completada'
+            AND date(created_at) >= date(today_local(), '-6 days')) AS total_7d,
          (SELECT username FROM users WHERE negocio_id = ? AND role = 'admin' ORDER BY id LIMIT 1) AS admin_username`
     )
-    .get(row.id, row.id, row.id, row.id);
+    .get(row.id, row.id, row.id, row.id, row.id, row.id, row.id);
   const ultimoPago = db
     .prepare('SELECT fecha, monto, hasta FROM pagos WHERE negocio_id = ? ORDER BY id DESC LIMIT 1')
     .get(row.id);
@@ -171,16 +175,6 @@ router.post('/negocios/:id/usuarios/:userId/blanquear', (req, res) => {
     `[plataforma] ${req.user.username} blanqueó la contraseña de "${user.username}" (usuario ${user.id}, negocio ${negocio.id})`
   );
   res.json({ username: user.username, password });
-});
-
-// Cambiar la contraseña del propio superadmin.
-router.put('/password', (req, res) => {
-  const { password } = req.body ?? {};
-  checkPassword(password);
-  db.prepare('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?').run(
-    bcrypt.hashSync(String(password), 10), req.user.id
-  );
-  res.json({ token: signToken(db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)) });
 });
 
 export default router;

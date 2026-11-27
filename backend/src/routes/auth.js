@@ -46,6 +46,7 @@ router.post('/login', (req, res) => {
   }
   clearLoginFailures(req.ip);
   if (!row.active) throw new HttpError(403, 'Usuario desactivado');
+  db.prepare('UPDATE users SET last_login_at = now_local() WHERE id = ?').run(row.id);
 
   res.json({ token: signToken(row), user: loadSessionUser(row) });
 });
@@ -95,6 +96,7 @@ router.post('/registro', (req, res) => {
   // El código lo elige quien se registra (la web le propone uno a partir del nombre); sin él se usa el primero libre.
   const { userId } = createNegocio({ nombre: negocio, slug, modules, contacto, admin: { name, username, password } });
   signupLimiter.record(req.ip);
+  db.prepare('UPDATE users SET last_login_at = now_local() WHERE id = ?').run(userId);
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   res.status(201).json({ token: signToken(row), user: loadSessionUser(row) });
 });
